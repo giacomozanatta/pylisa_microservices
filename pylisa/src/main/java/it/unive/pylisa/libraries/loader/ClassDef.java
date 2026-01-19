@@ -21,18 +21,20 @@ public class ClassDef {
 	private final String base;
 	private final Collection<Method> methods = new HashSet<>();
 	private final Collection<Field> fields = new HashSet<>();
-
+	private final Type reifiedTypeName;
 	public ClassDef(
 			boolean root,
 			boolean sealed,
 			String typeName,
 			String name,
-			String base) {
+			String base,
+			Type reifiedTypeName) {
 		this.root = root;
 		this.sealed = sealed;
 		this.typeName = typeName;
 		this.name = name;
 		this.base = base;
+		this.reifiedTypeName = reifiedTypeName;
 	}
 
 	public boolean isRoot() {
@@ -63,6 +65,9 @@ public class ClassDef {
 		return fields;
 	}
 
+	public Type getReifiedTypeName() {
+		return reifiedTypeName;
+	}
 	@Override
 	public int hashCode() {
 		return Objects.hash(base, fields, methods, name, root, sealed, typeName);

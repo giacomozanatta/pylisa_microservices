@@ -326,6 +326,11 @@ public class ConstantPropagation
 		return top();
 	}
 
+	@Override
+	public ConstantPropagation evalVariadicExpression(VariadicExpression expression, ConstantPropagation[] values,  ProgramPoint pp, SemanticOracle oracle) {
+		return BaseNonRelationalValueDomain.super.evalVariadicExpression(expression, values, pp, oracle);
+	}
+
 	@SuppressWarnings("unchecked")
 	private ConstantPropagation dictPut(
 			ConstantPropagation left,

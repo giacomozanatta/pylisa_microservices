@@ -45,7 +45,8 @@ public class LibrarySpecificationParser extends LibraryDefinitionParserBaseVisit
 				ctx.SEALED() != null,
 				ctx.type_name == null ? null : ctx.type_name.getText(),
 				ctx.name.getText(),
-				ctx.base == null ? null : ctx.base.getText());
+				ctx.base == null ? null : ctx.base.getText(),
+				ctx.syntheticType == null ? null : visitType(ctx.syntheticType));
 		for (MethodContext mtd : ctx.method())
 			cls.getMethods().add(visitMethod(mtd));
 
@@ -60,13 +61,13 @@ public class LibrarySpecificationParser extends LibraryDefinitionParserBaseVisit
 		return new Field(
 				ctx.INSTANCE() != null,
 				ctx.name.getText(),
-				visitType(ctx.type()));
+				visitType(ctx.paramType));
 	}
 
 	@Override
 	public Parameter visitParam(
 			ParamContext ctx) {
-		Type type = visitType(ctx.type());
+		Type type = visitType(ctx.paramType);
 		String name = ctx.name.getText();
 		if (ctx.DEFAULT() == null)
 			return new Parameter(name, type,

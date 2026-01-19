@@ -171,10 +171,7 @@ import it.unive.pylisa.cfg.expression.comparison.PyLessThan;
 import it.unive.pylisa.cfg.expression.comparison.PyNotEqual;
 import it.unive.pylisa.cfg.expression.comparison.PyOr;
 import it.unive.pylisa.cfg.expression.literal.PyNoneLiteral;
-import it.unive.pylisa.cfg.statement.FromImport;
-import it.unive.pylisa.cfg.statement.FunctionDef;
-import it.unive.pylisa.cfg.statement.Import;
-import it.unive.pylisa.cfg.statement.SimpleSuperUnresolvedCall;
+import it.unive.pylisa.cfg.statement.*;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyLambdaType;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
@@ -517,7 +514,6 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 	private CodeMemberDescriptor buildMainCFGDescriptor(
 			SourceCodeLocation loc) {
 		PyParameter[] cfgArgs = new PyParameter[] {};
-
 		return new CodeMemberDescriptor(loc, currentUnit, false, INSTRUMENTED_MAIN_FUNCTION_NAME, cfgArgs);
 	}
 
@@ -528,7 +524,7 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 		PyParameter[] cfgArgs = visitParameters(funcDecl.parameters());
 
 		return new CodeMemberDescriptor(getLocation(funcDecl), currentUnit,
-				currentUnit instanceof ClassUnit ? true : false,
+                currentUnit instanceof ClassUnit,
 				funcName, cfgArgs);
 	}
 
@@ -539,11 +535,28 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 	}
 
 	@Override
-	public AnnotationMember visitDecorator(
+	public UnresolvedCall visitDecorator(
 			DecoratorContext ctx) {
-		if (ctx.dotted_name() == null)
+		if (ctx.dotted_name() == null) {
 			throw new UnsupportedOperationException("Expecting a Dotted_nameContext in a DecoratorContext.");
+		}
+		if (ctx.arglist() == null && ctx.OPEN_PAREN() == null) {
+			throw new UnsupportedOperationException("DecoratedContext without arglist and parenthesis are not supported.");
+		}
+		Expression result = visitDotted_name(ctx.dotted_name());
+		/* If the result is a VariableRef, for example, @f() -> VariableRef(f), it means we are in the current scope. No need to add
+			a parameter in the function.
+		 */
+		if (result instanceof VariableRef) {
+			List<Expression> params = new ArrayList<>();
+			String target = ((VariableRef) result).getName();
+			if (ctx.arglist() != null)
+				for (ArgumentContext arg : ctx.arglist().argument())
+					params.add(visitArgument(arg));
 
+			return new UnresolvedCall(currentCFG, getLocation(ctx), CallType.STATIC, null, target,
+					params.toArray(Expression[]::new));
+		}
 		List<Expression> params = new ArrayList<>();
 		String varName = ctx.dotted_name().children.get(0).getText();
 		params.add(new VariableRef(this.currentCFG, getLocation(ctx), varName));
@@ -554,24 +567,47 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 
 		List<ParseTree> trees = ctx.dotted_name().children.subList(1, ctx.dotted_name().children.size());
 		String target = trees.stream()
-				.filter(pt -> !pt.getText().equals("."))
 				.map(ParseTree::getText)
+				.filter(text -> !text.equals("."))
 				.collect(Collectors.joining("."));
-		UnresolvedCall uc = new UnresolvedCall(currentCFG, getLocation(ctx), CallType.UNKNOWN, null, target,
-				params.toArray(Expression[]::new));
-		return new AnnotationMember(ctx.dotted_name().getText(), new DecoratedAnnotation(params, uc));
+        return new UnresolvedCall(currentCFG, getLocation(ctx), CallType.UNKNOWN, null, target,
+                params.toArray(Expression[]::new));
+		//return new AnnotationMember(ctx.dotted_name().getText(), new DecoratedAnnotation(params, uc));
 	}
 
-	@Override
-	public Annotation visitDecorators(
+
+	public Annotation visitDecorators2(
 			DecoratorsContext ctx) {
 		List<AnnotationMember> annotationMembers = new ArrayList<>();
 		for (DecoratorContext dc : ctx.decorator()) {
-			AnnotationMember am = visitDecorator(dc);
-			annotationMembers.add(am);
+			//AnnotationMember am = visitDecorator(dc);
+			//annotationMembers.add(am);
 		}
-		Annotation annotation = new Annotation("$decorators", annotationMembers);
-		return annotation;
+        return new Annotation("$decorators", annotationMembers);
+	}
+
+	public Expression visitDecorators(DecoratorsContext ctx, Expression decoratedFunction) {
+		Expression result = decoratedFunction;
+
+		List<DecoratorContext> decorators = ctx.decorator();
+
+		// iterate bottom-up
+		for (int i = decorators.size() - 1; i >= 0; i--) {
+			UnresolvedCall decorator = visitDecorator(decorators.get(i));
+
+			if (result == null) {
+				result = decorator;
+			} else {
+				result = new FunctionApply(
+						currentCFG,
+						getLocation(ctx),
+						decorator,
+						result
+				);
+			}
+		}
+
+		return result;
 	}
 
 	/*
@@ -582,10 +618,45 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 	@Override
 	public Object visitDecorated(
 			DecoratedContext ctx) {
-		if (ctx.decorators() != null) {
-			NodeList<CFG, Statement, Edge> block = new NodeList<>(SEQUENTIAL_SINGLETON);
-			Statement first = null, last = null;
-			Annotation annotation = visitDecorators(ctx.decorators());
+		if (ctx.decorators().isEmpty()) {
+			throw new UnsupportedStatementException("Expecting a DecoratorsContext in DecoratedContext.");
+		}
+		NodeList<CFG, Statement, Edge> block = new NodeList<>(SEQUENTIAL_SINGLETON);
+		Statement first = null, last = null;
+		Expression result;
+		FunctionLiteral decoratedFunction;
+		if (ctx.classdef() != null) {
+			throw new UnsupportedStatementException("Decorators in classdef are not supported yet.");
+		} else if (ctx.async_funcdef() != null) {
+			PyCFG method = visitAsync_funcdef(ctx.async_funcdef());
+
+			decoratedFunction =
+					new FunctionLiteral(this.currentCFG, getLocation(ctx), method);
+
+			result =
+					visitDecorators(ctx.decorators(), decoratedFunction);
+
+			first = result;
+			block.addNode(result);
+			last = result;
+		} else if (ctx.funcdef() != null) {
+			PyCFG method = visitFuncdef(ctx.funcdef());
+			//method.getDescriptor().getAnnotations().addAnnotation(annotation);
+			decoratedFunction = new FunctionLiteral(this.currentCFG, getLocation(ctx), method);
+			//block.addNode(fdef);
+			/*if (last != null) {
+				Edge e = new SequentialEdge(last, fdef);
+				block.addEdge(e);
+			}*/
+			//last = fdef;
+		} else {
+			throw new UnsupportedStatementException("Expecting {'def', 'class', 'async'} after decorators.");
+		}
+
+		return Triple.of(first, block, last);
+
+
+		/*if (ctx.decorators() != null) {
 			for (AnnotationMember ann : annotation.getAnnotationMembers())
 				if (ann.getValue() instanceof DecoratedAnnotation da) {
 					Call c = da.getCall();
@@ -605,7 +676,7 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 			} else if (ctx.async_funcdef() != null) {
 				PyCFG method = visitAsync_funcdef(ctx.async_funcdef());
 				method.getDescriptor().getAnnotations().addAnnotation(annotation);
-				FunctionDef fdef = new FunctionDef(this.currentCFG, getLocation(ctx), method);
+				FunctionLiteral fdef = new FunctionLiteral(this.currentCFG, getLocation(ctx), method);
 				block.addNode(fdef);
 				if (last != null) {
 					Edge e = new SequentialEdge(last, fdef);
@@ -615,7 +686,7 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 			} else if (ctx.funcdef() != null) {
 				PyCFG method = visitFuncdef(ctx.funcdef());
 				method.getDescriptor().getAnnotations().addAnnotation(annotation);
-				FunctionDef fdef = new FunctionDef(this.currentCFG, getLocation(ctx), method);
+				FunctionLiteral fdef = new FunctionLiteral(this.currentCFG, getLocation(ctx), method);
 				block.addNode(fdef);
 				if (last != null) {
 					Edge e = new SequentialEdge(last, fdef);
@@ -627,7 +698,7 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 			}
 			return Triple.of(first, block, last);
 		}
-		throw new UnsupportedStatementException("Expecting a DecoratorsContext in DecoratedContext");
+		throw new UnsupportedStatementException("Expecting a DecoratorsContext in DecoratedContext");*/
 	}
 
 	@Override
@@ -1016,9 +1087,28 @@ public class PyFrontend extends Python3ParserBaseVisitor<Object> {
 	}
 
 	@Override
-	public Object visitDotted_name(
+	public Expression visitDotted_name(
 			Dotted_nameContext ctx) {
-		throw new UnsupportedStatementException();
+		if (ctx.NAME().isEmpty()) {
+			throw new UnsupportedStatementException("At least one name expected in Dotted_nameContext.");
+		}
+		Expression result = null;
+		String targetName = null;
+		for (TerminalNode name : ctx.NAME()) {
+			if (targetName != null) {
+				if (result == null) {
+					result = new AccessInstanceGlobal(currentCFG, getLocation(ctx), new VariableRef(currentCFG, getLocation(ctx), targetName), name.getText());
+				} else {
+					result = new AccessInstanceGlobal(currentCFG, getLocation(ctx), result, ctx.getText());
+				}
+			}
+			targetName = name.getText();
+
+		}
+		if (result == null) {
+			result = new VariableRef(currentCFG, getLocation(ctx), targetName);
+		}
+		return result;
 	}
 
 	@Override

@@ -8,6 +8,9 @@ import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.NativeCFG;
+import it.unive.pylisa.cfg.type.PyClassType;
+import it.unive.pylisa.cfg.type.ReificationRegistry;
+import it.unive.pylisa.cfg.type.ReifiedRoleType;
 import it.unive.pylisa.libraries.LibrarySpecificationParser.LibraryCreationException;
 import it.unive.pylisa.libraries.PyLibraryUnitType;
 import java.lang.reflect.Constructor;
@@ -87,8 +90,13 @@ public class Library {
 			CompilationUnit c = cls.toLiSAUnit(location, program, rootHolder);
 			program.addUnit(c);
 			// type registration is a side effect of the constructor
-			if (cls.getTypeName() == null)
-				new PyLibraryUnitType(unit, c);
+			if (cls.getTypeName() == null) {
+				PyLibraryUnitType unitType = new PyLibraryUnitType(unit, c);
+				if (cls.getReifiedTypeName() != null) {
+					ReificationRegistry.registerRule(new ReifiedRoleType(unitType, cls.getReifiedTypeName().toLiSAType()));
+				}
+				//;
+			}
 			else
 				try {
 					Class<?> type = Class.forName(cls.getTypeName());
