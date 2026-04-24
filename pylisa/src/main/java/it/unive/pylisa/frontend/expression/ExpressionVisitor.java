@@ -35,6 +35,7 @@ import it.unive.pylisa.antlr.Python3Parser.Star_exprContext;
 import it.unive.pylisa.antlr.Python3Parser.Subscript_Context;
 import it.unive.pylisa.antlr.Python3Parser.SubscriptlistContext;
 import it.unive.pylisa.antlr.Python3Parser.TermContext;
+import it.unive.pylisa.antlr.Python3Parser.Namedexpr_testContext;
 import it.unive.pylisa.antlr.Python3Parser.TestContext;
 import it.unive.pylisa.antlr.Python3Parser.TestOrStarContext;
 import it.unive.pylisa.antlr.Python3Parser.Test_nocondContext;
@@ -272,6 +273,12 @@ public final class ExpressionVisitor extends Python3ParserBaseVisitor<Object> {
 	public Expression visitTest(
 			TestContext c) {
 		return functional.visitTest(c);
+	}
+
+	@Override
+	public Expression visitNamedexpr_test(
+			Namedexpr_testContext c) {
+		return functional.visitNamedexpr_test(c);
 	}
 
 	@Override

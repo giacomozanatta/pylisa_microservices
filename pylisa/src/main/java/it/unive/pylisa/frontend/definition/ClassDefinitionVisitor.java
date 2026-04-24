@@ -150,55 +150,66 @@ public final class ClassDefinitionVisitor {
 		ctx.enterLocalScope();
 		try {
 			for (StmtContext stmt : pctx.stmt()) {
-				if (stmt.simple_stmt() != null) {
-					Statement s = parseField(stmt.simple_stmt());
-					block.addNode(s);
-					if (first == null)
-						first = s;
-					if (last != null)
-						block.addEdge(new SequentialEdge(last, s));
-					last = s;
-				} else if (stmt.compound_stmt().funcdef() != null) {
-					Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> r = ctx.def()
-							.visitFuncdef(stmt.compound_stmt().funcdef());
-					if (r.getLeft() != null) {
+				try {
+					if (stmt.simple_stmt() != null) {
+						Statement s = parseField(stmt.simple_stmt());
+						block.addNode(s);
 						if (first == null)
-							first = r.getLeft();
-						block.mergeWith(r.getMiddle());
+							first = s;
 						if (last != null)
-							block.addEdge(new SequentialEdge(last, r.getLeft()));
-						last = r.getRight();
+							block.addEdge(new SequentialEdge(last, s));
+						last = s;
+					} else if (stmt.compound_stmt().funcdef() != null) {
+						Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> r = ctx.def()
+								.visitFuncdef(stmt.compound_stmt().funcdef());
+						if (r.getLeft() != null) {
+							if (first == null)
+								first = r.getLeft();
+							block.mergeWith(r.getMiddle());
+							if (last != null)
+								block.addEdge(new SequentialEdge(last, r.getLeft()));
+							last = r.getRight();
+						}
+					} else if (stmt.compound_stmt().async_stmt() != null) {
+						Object async = ctx.stmt().visitAsync_stmt(stmt.compound_stmt().async_stmt());
+						if (async instanceof Triple<?, ?, ?> triple
+								&& triple.getLeft() instanceof Statement left
+								&& triple.getMiddle() instanceof NodeList<?, ?, ?> middle
+								&& triple.getRight() instanceof Statement right) {
+							@SuppressWarnings("unchecked")
+							NodeList<CFG, Statement, Edge> middleBlock = (NodeList<CFG, Statement, Edge>) middle;
+							if (first == null)
+								first = left;
+							block.mergeWith(middleBlock);
+							if (last != null)
+								block.addEdge(new SequentialEdge(last, left));
+							last = right;
+						}
+					} else if (stmt.compound_stmt().decorated() != null) {
+						Object decorated = ctx.def().visitDecorated(stmt.compound_stmt().decorated());
+						if (decorated instanceof Triple<?, ?, ?> triple
+								&& triple.getLeft() instanceof Statement left
+								&& triple.getMiddle() instanceof NodeList<?, ?, ?> middle
+								&& triple.getRight() instanceof Statement right) {
+							@SuppressWarnings("unchecked")
+							NodeList<CFG, Statement, Edge> middleBlock = (NodeList<CFG, Statement, Edge>) middle;
+							if (first == null)
+								first = left;
+							block.mergeWith(middleBlock);
+							if (last != null)
+								block.addEdge(new SequentialEdge(last, left));
+							last = right;
+						}
 					}
-				} else if (stmt.compound_stmt().async_stmt() != null) {
-					Object async = ctx.stmt().visitAsync_stmt(stmt.compound_stmt().async_stmt());
-					if (async instanceof Triple<?, ?, ?> triple
-							&& triple.getLeft() instanceof Statement left
-							&& triple.getMiddle() instanceof NodeList<?, ?, ?> middle
-							&& triple.getRight() instanceof Statement right) {
-						@SuppressWarnings("unchecked")
-						NodeList<CFG, Statement, Edge> middleBlock = (NodeList<CFG, Statement, Edge>) middle;
-						if (first == null)
-							first = left;
-						block.mergeWith(middleBlock);
-						if (last != null)
-							block.addEdge(new SequentialEdge(last, left));
-						last = right;
-					}
-				} else if (stmt.compound_stmt().decorated() != null) {
-					Object decorated = ctx.def().visitDecorated(stmt.compound_stmt().decorated());
-					if (decorated instanceof Triple<?, ?, ?> triple
-							&& triple.getLeft() instanceof Statement left
-							&& triple.getMiddle() instanceof NodeList<?, ?, ?> middle
-							&& triple.getRight() instanceof Statement right) {
-						@SuppressWarnings("unchecked")
-						NodeList<CFG, Statement, Edge> middleBlock = (NodeList<CFG, Statement, Edge>) middle;
-						if (first == null)
-							first = left;
-						block.mergeWith(middleBlock);
-						if (last != null)
-							block.addEdge(new SequentialEdge(last, left));
-						last = right;
-					}
+				} catch (UnsupportedStatementException e) {
+					// Mirror FunctionDefinitionVisitor's containment
+					// (FunctionDefinitionVisitor.java:81): one unsupported
+					// Python statement inside a class body must not discard
+					// the whole class. Re-throw in strict mode; otherwise the
+					// rest of the body still contributes to analysis.
+					if (!ctx.continueOnUnsupportedStatement())
+						throw e;
+					LOG.warn("[PyLiSA] Skipping unsupported class-body stmt: {}", e.getMessage());
 				}
 			}
 		} finally {

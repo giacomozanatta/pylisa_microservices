@@ -47,7 +47,8 @@ public final class UnsupportedGrammarFeatures {
 			Map.entry("Dotted_as_nameContext", "dotted import-as name"),
 			Map.entry("Import_as_namesContext", "import-as list"),
 			Map.entry("Dotted_as_namesContext", "dotted import-as list"),
-			Map.entry("VarargslistContext", "untyped parameter list"));
+			Map.entry("VarargslistContext", "untyped parameter list"),
+			Map.entry("Namedexpr_testContext", ":= walrus in unsupported position"));
 
 	public static String labelFor(
 			ParserRuleContext ctx) {

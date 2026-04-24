@@ -219,8 +219,14 @@ public final class AccessVisitor {
 		if (pctx.STAR() != null)
 			return new StarExpression(ctx.currentCFG(), support.getLocation(pctx),
 					ctx.expr().visitTest(pctx.test(0)));
-		if (pctx.comp_for() != null || pctx.POWER() != null || pctx.test().size() != 1)
+		if (pctx.comp_for() != null || pctx.POWER() != null)
 			return new Empty(ctx.currentCFG(), support.getLocation(pctx));
+		// Positional arg: grammar routes this through namedexpr_test so that
+		// `foo(x := bar())` parses. If walrus is actually present, the
+		// namedexpr visitor rejects it (no prelude frame is active at call
+		// argument sites in this first pass); otherwise it reduces to test.
+		if (pctx.namedexpr_test() != null)
+			return ctx.expr().visitNamedexpr_test(pctx.namedexpr_test());
 		return ctx.expr().visitTest(pctx.test(0));
 	}
 

@@ -152,6 +152,16 @@ public final class StatementVisitor extends Python3ParserBaseVisitor<Object> {
 
 	// === simple statements ===
 
+	/**
+	 * Exposes the simple-statement helper used for scoping and declaring
+	 * assignment targets. The walrus visitor ({@code FunctionalVisitor}) needs
+	 * it so its desugared {@code PyAssign} is scoped identically to an explicit
+	 * assignment statement.
+	 */
+	public SimpleStatementVisitor simple() {
+		return simple;
+	}
+
 	@Override
 	public Object visitStmt(
 			StmtContext c) {

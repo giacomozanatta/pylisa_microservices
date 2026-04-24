@@ -135,7 +135,7 @@ public final class LiteralVisitor {
 			Testlist_compContext pctx) {
 		if (pctx.comp_for() != null)
 			return support.rejectUnsupported(pctx, "generator comprehension");
-		return visitTestOrStar(pctx.testOrStar(0));
+		return visitTestlistFirstElement(pctx);
 	}
 
 	public Expression visitTestOrStar(
@@ -145,10 +145,29 @@ public final class LiteralVisitor {
 		return ctx.expr().visitTest(pctx.test());
 	}
 
+	/**
+	 * The first element of a {@code testlist_comp} is a {@code namedexpr_test}
+	 * (or {@code star_expr}) to accommodate walrus inside parens like
+	 * {@code (x := 5)}. All subsequent elements after a comma are plain
+	 * {@code testOrStar} since PEP 572 forbids walrus as a tuple member.
+	 */
+	private Expression visitTestlistFirstElement(
+			Testlist_compContext pctx) {
+		if (pctx.namedexpr_test() != null)
+			return ctx.expr().visitNamedexpr_test(pctx.namedexpr_test());
+		if (pctx.star_expr() != null)
+			return support.rejectUnsupported(pctx, "star expression in testOrStar");
+		return visitTestOrStar(pctx.testOrStar(0));
+	}
+
 	public List<Expression> extractExpressionsFromTestlist_comp(
 			Testlist_compContext pctx) {
 		List<Expression> result = new ArrayList<>();
-		if (pctx == null || pctx.testOrStar() == null || pctx.testOrStar().size() == 0)
+		if (pctx == null)
+			return result;
+		if (pctx.namedexpr_test() != null || pctx.star_expr() != null)
+			result.add(visitTestlistFirstElement(pctx));
+		if (pctx.testOrStar() == null || pctx.testOrStar().size() == 0)
 			return result;
 		for (TestOrStarContext e : pctx.testOrStar())
 			result.add(visitTestOrStar(e));
