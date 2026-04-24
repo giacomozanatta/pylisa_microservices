@@ -6,16 +6,20 @@ import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.controlFlow.ControlFlowStructure;
 import it.unive.lisa.program.cfg.edge.SequentialEdge;
+import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.pylisa.cfg.PyCFG;
 import it.unive.pylisa.frontend.definition.DefinitionVisitor;
 import it.unive.pylisa.frontend.expression.ExpressionVisitor;
 import it.unive.pylisa.frontend.statement.StatementVisitor;
 import it.unive.pylisa.program.ModuleUnit;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,6 +72,7 @@ public final class ParserContext {
 	private Map<String, String> imports = new HashMap<>();
 	private boolean shouldPrependUnitAccess = true;
 	private final Deque<Set<String>> localScopes = new ArrayDeque<>();
+	private final Deque<List<Statement>> walrusPreludes = new ArrayDeque<>();
 
 	private ExpressionVisitor expr;
 	private StatementVisitor stmt;
@@ -258,6 +263,40 @@ public final class ParserContext {
 			return false;
 		Set<String> top = localScopes.peek();
 		return top != null && top.contains(name);
+	}
+
+	// === walrus / named-expression prelude stack ===
+	//
+	// Walrus (`:=`) is desugared into a plain `PyAssign` that must be emitted
+	// *before* the enclosing guard/argument is evaluated. Because the emission
+	// point (the caller's `NodeList` block) is only known to the caller, the
+	// expression visitor deposits the generated assignment here and the caller
+	// drains it after visiting the surrounding expression.
+	//
+	// Callers wrap the expression-visit call with
+	// `beginWalrusPrelude()` / `drainWalrusPrelude()`. If no prelude frame is
+	// active when a walrus is visited, the walrus is desugared in place but its
+	// assignment cannot be hoisted — the visitor raises UNSUPPORTED instead.
+
+	public void beginWalrusPrelude() {
+		walrusPreludes.push(new ArrayList<>());
+	}
+
+	public boolean hasActiveWalrusPrelude() {
+		return !walrusPreludes.isEmpty();
+	}
+
+	public void addWalrusPrelude(
+			Statement s) {
+		if (walrusPreludes.isEmpty())
+			throw new IllegalStateException("no active walrus-prelude frame");
+		walrusPreludes.peek().add(Objects.requireNonNull(s));
+	}
+
+	public List<Statement> drainWalrusPrelude() {
+		if (walrusPreludes.isEmpty())
+			return Collections.emptyList();
+		return walrusPreludes.pop();
 	}
 
 	// === cross-visitor wiring ===

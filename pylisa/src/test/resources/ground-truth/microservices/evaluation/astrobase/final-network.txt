@@ -1,1 +1,20 @@
-COUNT: 0
+COUNT: 16
+GET: 9
+	/aws/cluster: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/aws/cluster/{cluster_name}: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/aws/cluster/{cluster_name}/nodegroup: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/aws/cluster/{cluster_name}/nodegroup/{nodegroup_name}: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/azure/cluster: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/azure/cluster/{cluster_name}: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/gcp/cluster: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/gcp/cluster/{cluster_name}: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/healthcheck: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/health.py:9:34
+POST: 4
+	/aws/cluster: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/azure/cluster: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/gcp/cluster: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/gcp/setup: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/gcp.py:17:57
+DELETE: 3
+	/aws/cluster/{cluster_name}: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/azure/cluster/{cluster_name}: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57
+	/gcp/cluster/{cluster_name}: py-testcases/microservices/evaluation/astrobase/astrobasecloud/server/routers/aws.py:14:57

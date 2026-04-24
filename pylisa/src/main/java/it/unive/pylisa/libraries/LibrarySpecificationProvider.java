@@ -36,7 +36,14 @@ public class LibrarySpecificationProvider {
 
 	public static final String SET = "builtins.set";
 	public static final String DICT = "builtins.dict";
-	public static final String LIST = "List";
+	// Historical outlier: this was "List" (capital, unqualified), never
+	// matched the stdlib's `builtins.list` registration, so
+	// PyClassType.isRegistered(LIST) always returned false and
+	// ListCreation short-circuited to `state` with no computed
+	// expressions. See docs/walrus-dispatch-findings.md for the bisect
+	// that surfaced this via dispatch/metrics.py's class-level
+	// `_providers = []`.
+	public static final String LIST = "builtins.list";
 	public static final String TUPLE = "builtins.tuple";
 	public static final String SLICE = "Slice";
 	public static final String OBJECT = "Object";

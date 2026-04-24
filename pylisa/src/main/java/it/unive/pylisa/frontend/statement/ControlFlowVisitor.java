@@ -167,11 +167,12 @@ public final class ControlFlowVisitor {
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitIf_stmt(
 			If_stmtContext pctx) {
 		NodeList<CFG, Statement, Edge> block = new NodeList<>(ParserContext.SEQUENTIAL_SINGLETON);
-		Statement booleanGuard = ctx.expr().visitTest(pctx.test(0));
-		block.addNode(booleanGuard);
-
 		NoOp ifExitNode = new NoOp(ctx.currentCFG(), support.getLocation(pctx));
 		block.addNode(ifExitNode);
+
+		Pair<Statement, Statement> g0 = buildGuardWithPrelude(block, pctx.namedexpr_test(0));
+		Statement booleanEntry = g0.getLeft();
+		Statement booleanGuard = g0.getRight();
 
 		Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> trueBlock = visitSuite(pctx.suite(0));
 		block.mergeWith(trueBlock.getMiddle());
@@ -183,13 +184,14 @@ public final class ControlFlowVisitor {
 			block.addEdge(new SequentialEdge(trueExit, ifExitNode));
 
 		List<Pair<Statement, Collection<Statement>>> branches = new LinkedList<>();
-		int testLength = pctx.test().size();
+		int testLength = pctx.namedexpr_test().size();
 		Statement lastElifGuard = booleanGuard;
 		if (testLength > 1)
 			for (int i = 1; i < testLength; i++) {
-				Statement elifGuard = ctx.expr().visitTest(pctx.test(i));
-				block.addNode(elifGuard);
-				block.addEdge(new FalseEdge(lastElifGuard, elifGuard));
+				Pair<Statement, Statement> gi = buildGuardWithPrelude(block, pctx.namedexpr_test(i));
+				Statement elifEntryNode = gi.getLeft();
+				Statement elifGuard = gi.getRight();
+				block.addEdge(new FalseEdge(lastElifGuard, elifEntryNode));
 				lastElifGuard = elifGuard;
 				Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> elifBlock = visitSuite(pctx.suite(i));
 				block.mergeWith(elifBlock.getMiddle());
@@ -228,7 +230,7 @@ public final class ControlFlowVisitor {
 		ctx.cfs().add(new IfThenElse(ctx.currentCFG().getNodeList(), booleanGuard, ifExitNode,
 				trueBlock.getMiddle().getNodes(),
 				falseStatements));
-		return Triple.of(booleanGuard, block, ifExitNode);
+		return Triple.of(booleanEntry, block, ifExitNode);
 	}
 
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitWhile_stmt(
@@ -237,16 +239,20 @@ public final class ControlFlowVisitor {
 		NoOp whileExitNode = new NoOp(ctx.currentCFG(), support.getLocation(pctx));
 		block.addNode(whileExitNode);
 
-		Statement condition = ctx.expr().visitTest(pctx.test());
-		block.addNode(condition);
+		Pair<Statement, Statement> g = buildGuardWithPrelude(block, pctx.namedexpr_test());
+		Statement conditionEntry = g.getLeft();
+		Statement condition = g.getRight();
 
 		Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> trueBlock = visitSuite(pctx.suite(0));
 
 		block.mergeWith(trueBlock.getMiddle());
 		ControlFlowBuilder.rewireLoopBody(block, trueBlock.getMiddle(), condition, whileExitNode);
 		block.addEdge(new TrueEdge(condition, trueBlock.getLeft()));
+		// Back-edge from the loop body targets the prelude entry (so walrus
+		// assignments re-execute each iteration, matching Python semantics),
+		// falling back to the bare condition when there is no prelude.
 		if (!trueBlock.getRight().stopsExecution())
-			block.addEdge(new SequentialEdge(trueBlock.getRight(), condition));
+			block.addEdge(new SequentialEdge(trueBlock.getRight(), conditionEntry));
 
 		Statement firstFollower;
 		if (pctx.ELSE() != null) {
@@ -263,7 +269,46 @@ public final class ControlFlowVisitor {
 
 		ctx.cfs().add(new Loop(ctx.currentCFG().getNodeList(), condition, firstFollower,
 				trueBlock.getMiddle().getNodes()));
-		return Triple.of(condition, block, whileExitNode);
+		return Triple.of(conditionEntry, block, whileExitNode);
+	}
+
+	/**
+	 * Visit a guard expression that may contain walrus ({@code :=}) operators,
+	 * splicing any desugared {@link PyAssign} prelude into {@code block} in
+	 * source order before the guard node itself. Returns a pair
+	 * {@code (entry, guard)} where {@code entry} is the first statement of
+	 * the prelude (or the guard itself if no walrus is present) and
+	 * {@code guard} is the boolean-producing statement that callers wire
+	 * TrueEdge / FalseEdge off of. Both nodes (plus any seq edges threading
+	 * prelude → prelude → guard) are added to {@code block} by this helper —
+	 * callers must not re-add the guard.
+	 */
+	private Pair<Statement, Statement> buildGuardWithPrelude(
+			NodeList<CFG, Statement, Edge> block,
+			it.unive.pylisa.antlr.Python3Parser.Namedexpr_testContext netx) {
+		ctx.beginWalrusPrelude();
+		Expression guardExpr;
+		List<Statement> prelude;
+		try {
+			guardExpr = ctx.expr().visitNamedexpr_test(netx);
+		} finally {
+			prelude = ctx.drainWalrusPrelude();
+		}
+		Statement guard = guardExpr;
+		if (prelude.isEmpty()) {
+			block.addNode(guard);
+			return Pair.of(guard, guard);
+		}
+		Statement prev = null;
+		for (Statement pre : prelude) {
+			block.addNode(pre);
+			if (prev != null)
+				block.addEdge(new SequentialEdge(prev, pre));
+			prev = pre;
+		}
+		block.addNode(guard);
+		block.addEdge(new SequentialEdge(prev, guard));
+		return Pair.of(prelude.get(0), guard);
 	}
 
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitFor_stmt(
