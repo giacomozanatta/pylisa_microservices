@@ -5,7 +5,6 @@ import it.unive.lisa.program.cfg.edge.Edge;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.util.datastructures.graph.code.NodeList;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.AnnassignContext;
 import it.unive.pylisa.antlr.Python3Parser.Assert_stmtContext;
 import it.unive.pylisa.antlr.Python3Parser.Async_stmtContext;
@@ -67,6 +66,7 @@ import org.apache.commons.lang3.tuple.Triple;
 public final class StatementVisitor extends Python3ParserBaseVisitor<Object> {
 
 	private final ParserContext ctx;
+	private final ParserSupport support;
 
 	private final SimpleStatementVisitor simple;
 	private final ControlFlowVisitor control;
@@ -77,7 +77,7 @@ public final class StatementVisitor extends Python3ParserBaseVisitor<Object> {
 			ParserContext ctx,
 			ParserSupport support) {
 		this.ctx = Objects.requireNonNull(ctx);
-		Objects.requireNonNull(support);
+		this.support = Objects.requireNonNull(support);
 		this.simple = new SimpleStatementVisitor(ctx, support);
 		this.control = new ControlFlowVisitor(ctx, support);
 		this.flow = new FlowControlVisitor(ctx, support);
@@ -327,7 +327,7 @@ public final class StatementVisitor extends Python3ParserBaseVisitor<Object> {
 	public List<Expression> visitExprlist(
 			ExprlistContext pctx) {
 		if (!pctx.star_expr().isEmpty())
-			throw new UnsupportedStatementException();
+			return support.rejectUnsupported(pctx, "star expression in exprlist");
 
 		List<Expression> result = new ArrayList<>(pctx.expr().size());
 		if (pctx.expr().size() == 0)

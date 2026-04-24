@@ -114,6 +114,30 @@ public final class ParserSupport {
 	}
 
 	/**
+	 * Collapses a whole-method dead-stub visit override to a one-liner.
+	 * Delegates to
+	 * {@link UnsupportedGrammarFeatures#reject(ParserContext, ParserRuleContext, ParserSupport)}
+	 * — reports an {@code UNSUPPORTED} diagnostic and throws. The generic
+	 * return type lets callers write
+	 * {@code return support.rejectUnsupported(ctx);} from any visit method
+	 * irrespective of its declared return type; control never returns.
+	 */
+	public <T> T rejectUnsupported(
+			ParserRuleContext pctx) {
+		return UnsupportedGrammarFeatures.reject(this.ctx, pctx, this);
+	}
+
+	/**
+	 * Overload for feature-gap branches inside larger visit methods: skips the
+	 * registry lookup and uses {@code label} directly.
+	 */
+	public <T> T rejectUnsupported(
+			ParserRuleContext pctx,
+			String label) {
+		return UnsupportedGrammarFeatures.reject(this.ctx, pctx, this, label);
+	}
+
+	/**
 	 * Extracts a short, lower-cased feature label from a diagnostic
 	 * description. Used so callers can filter events by category (e.g. "async",
 	 * "return") without coupling to full message wording. Falls back to the

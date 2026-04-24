@@ -15,7 +15,6 @@ import it.unive.lisa.program.cfg.statement.call.Call.CallType;
 import it.unive.lisa.program.cfg.statement.call.UnresolvedCall;
 import it.unive.lisa.program.cfg.statement.evaluation.LeftToRightEvaluation;
 import it.unive.lisa.util.datastructures.graph.code.NodeList;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.AnnassignContext;
 import it.unive.pylisa.antlr.Python3Parser.Assert_stmtContext;
 import it.unive.pylisa.antlr.Python3Parser.AugassignContext;
@@ -102,7 +101,7 @@ public final class SimpleStatementVisitor {
 			return new NoOp(ctx.currentCFG(), support.getLocation(pctx)); // TODO
 		else if (pctx.global_stmt() != null)
 			return new NoOp(ctx.currentCFG(), support.getLocation(pctx)); // TODO
-		throw new UnsupportedStatementException("Simple statement not yet supported");
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Expression visitExpr_stmt(
@@ -124,7 +123,7 @@ public final class SimpleStatementVisitor {
 
 		if (pctx.ASSIGN().size() == 0)
 			if (pctx.testlist_star_expr().size() != 1)
-				throw new UnsupportedStatementException();
+				return support.rejectUnsupported(pctx, "multi-target expression statement");
 			else
 				return visitTestlist_star_expr(pctx.testlist_star_expr(0));
 
@@ -167,12 +166,12 @@ public final class SimpleStatementVisitor {
 
 	public Object visitAnnassign(
 			AnnassignContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitAugassign(
 			AugassignContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Statement visitDel_stmt(
@@ -196,12 +195,12 @@ public final class SimpleStatementVisitor {
 
 	public Object visitGlobal_stmt(
 			Global_stmtContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitNonlocal_stmt(
 			Nonlocal_stmtContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Expression visitAssert_stmt(

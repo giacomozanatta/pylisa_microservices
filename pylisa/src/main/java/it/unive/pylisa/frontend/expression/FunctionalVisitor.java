@@ -2,7 +2,6 @@ package it.unive.pylisa.frontend.expression;
 
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.VariableRef;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.Comp_forContext;
 import it.unive.pylisa.antlr.Python3Parser.Comp_ifContext;
 import it.unive.pylisa.antlr.Python3Parser.Comp_iterContext;
@@ -78,17 +77,17 @@ public final class FunctionalVisitor {
 
 	public Object visitComp_iter(
 			Comp_iterContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitComp_for(
 			Comp_forContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitComp_if(
 			Comp_ifContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	private List<Expression> extractNamesFromVarArgList(

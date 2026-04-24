@@ -21,7 +21,6 @@ import it.unive.lisa.program.cfg.statement.literal.Int32Literal;
 import it.unive.lisa.program.cfg.statement.literal.StringLiteral;
 import it.unive.lisa.program.type.Int32Type;
 import it.unive.lisa.util.datastructures.graph.code.NodeList;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.Async_stmtContext;
 import it.unive.pylisa.antlr.Python3Parser.Compound_stmtContext;
 import it.unive.pylisa.antlr.Python3Parser.Except_clauseContext;
@@ -162,7 +161,7 @@ public final class ControlFlowVisitor {
 		if (pctx.with_stmt() != null)
 			return visitWith_stmt(pctx.with_stmt());
 
-		throw new UnsupportedStatementException("Expecting with, for, def, in Async_stmtContext.");
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitIf_stmt(
@@ -421,7 +420,7 @@ public final class ControlFlowVisitor {
 
 	public Object visitExcept_clause(
 			Except_clauseContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitSuite(
