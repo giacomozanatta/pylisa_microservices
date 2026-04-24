@@ -88,14 +88,14 @@ public class Classes {
 		assertEquals("[\"heap[s]:pp@'py-testcases/classes/global_fields.py':14:16\"]",
 				heap.get("$__main__::config").toString());
 
-		System.out.println("[T] $__main__.Config::case_sensitive == [\"bool\"]");
-		assertEquals("[\"bool\"]", type.get("$__main__.Config::case_sensitive").toString());
+		System.out.println("[T] $__main__.Config@1:0::case_sensitive == [\"bool\"]");
+		assertEquals("[\"bool\"]", type.get("$__main__.Config@1:0::case_sensitive").toString());
 
-		System.out.println("[T] $__main__.Config::env_file == [\"string\"]");
-		assertEquals("[\"string\"]", type.get("$__main__.Config::env_file").toString());
+		System.out.println("[T] $__main__.Config@1:0::env_file == [\"string\"]");
+		assertEquals("[\"string\"]", type.get("$__main__.Config@1:0::env_file").toString());
 
-		System.out.println("[T] $__main__.Config::env_file_encoding == [\"bool\"]");
-		assertEquals("[\"string\"]", type.get("$__main__.Config::env_file_encoding").toString());
+		System.out.println("[T] $__main__.Config@1:0::env_file_encoding == [\"bool\"]");
+		assertEquals("[\"string\"]", type.get("$__main__.Config@1:0::env_file_encoding").toString());
 
 		System.out.println("[T] $__main__::a == [\"bool\"]");
 		assertEquals("[\"bool\"]", type.get("$__main__::a").toString());
@@ -162,14 +162,14 @@ public class Classes {
 		assertEquals("\"true\"",
 				value.get("heap[s]:pp@'py-testcases/classes/global_fields.py':14:16[case_sensitive]").toString());
 
-		System.out.println("[V] $__main__.Config::case_sensitive == \"false\"");
-		assertEquals("\"false\"", value.get("$__main__.Config::case_sensitive").toString());
+		System.out.println("[V] $__main__.Config@1:0::case_sensitive == \"false\"");
+		assertEquals("\"false\"", value.get("$__main__.Config@1:0::case_sensitive").toString());
 
-		System.out.println("[V] $__main__.Config::env_file == \".env\"");
-		assertEquals("\"\\\".env\\\"\"", value.get("$__main__.Config::env_file").toString());
+		System.out.println("[V] $__main__.Config@1:0::env_file == \".env\"");
+		assertEquals("\"\\\".env\\\"\"", value.get("$__main__.Config@1:0::env_file").toString());
 
-		System.out.println("[V] $__main__.Config::env_file_encoding == \"utf-8\"");
-		assertEquals("\"\\\"utf-8\\\"\"", value.get("$__main__.Config::env_file_encoding").toString());
+		System.out.println("[V] $__main__.Config@1:0::env_file_encoding == \"utf-8\"");
+		assertEquals("\"\\\"utf-8\\\"\"", value.get("$__main__.Config@1:0::env_file_encoding").toString());
 	}
 
 	private static void assertClass1Correctness(
@@ -200,15 +200,15 @@ public class Classes {
 		assertEquals("[\"heap[s]:pp@'py-testcases/classes/class1.py':7:16\"]",
 				heap.get("$__main__::class1").toString());
 
-		System.out.println("[T] Assert $__main__.Class1 == [\"__main__.Class1*\"]");
-		assertEquals("[\"__main__.Class1\"]", type.get("$__main__.Class1").toString());
+		System.out.println("[T] Assert $__main__.Class1@1:0 == [\"__main__.Class1@1:0\"]");
+		assertEquals("[\"__main__.Class1@1:0\"]", type.get("$__main__.Class1@1:0").toString());
 
-		System.out.println("[T] Assert $__main__::class1 == [\"__main__.Class1*\"]");
-		assertEquals("[\"__main__.Class1*\"]", type.get("$__main__::class1").toString());
+		System.out.println("[T] Assert $__main__::class1 == [\"__main__.Class1@1:0*\"]");
+		assertEquals("[\"__main__.Class1@1:0*\"]", type.get("$__main__::class1").toString());
 
-		System.out.println("[T] Assert $__main__.Class1::test == [\"__main__.Class1.test\"]");
+		System.out.println("[T] Assert $__main__.Class1@1:0::test == [\"__main__.Class1@1:0.test\"]");
 
-		assertEquals("[\"__main__.Class1*\"]", type.get("$__main__::class1").toString());
+		assertEquals("[\"__main__.Class1@1:0*\"]", type.get("$__main__::class1").toString());
 		System.out.println("[T] heap[s]:pp@'py-testcases/classes/class1.py':7:16[x] == [\"int32\"]");
 		assertEquals("[\"int32\"]", type.get("heap[s]:pp@'py-testcases/classes/class1.py':7:16[x]").toString());
 
@@ -248,8 +248,8 @@ public class Classes {
 		System.out.println("[V] Assert heap[s]:pp@'py-testcases/classes/class1.py':7:16[x] == \"10\"");
 		assertEquals("\"10\"", value.get("heap[s]:pp@'py-testcases/classes/class1.py':7:16[x]").toString());
 
-		System.out.println("[V] Assert $__main__.Class1::Y == \"100\"");
-		assertEquals("\"100\"", value.get("$__main__.Class1::Y").toString());
+		System.out.println("[V] Assert $__main__.Class1@1:0::Y == \"100\"");
+		assertEquals("\"100\"", value.get("$__main__.Class1@1:0::Y").toString());
 
 		System.out.println("[V] Assert $__main__::a == \"20\"");
 		assertEquals("\"20\"", value.get("$__main__::a").toString());

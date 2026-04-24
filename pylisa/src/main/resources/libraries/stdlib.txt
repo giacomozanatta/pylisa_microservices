@@ -28,10 +28,10 @@ library builtins:
     class dict extends builtins.sequence
     class tuple extends builtins.sequence
     class slice extends builtins.sequence
+    method staticmethod: it.unive.pylisa.libraries.builtins.functions.StaticMethod
+        type it.unive.lisa.type.Untyped::INSTANCE
+        param f type it.unive.lisa.type.Untyped::INSTANCE
     class ellipsis extends builtins.object:
         method __new__: it.unive.pylisa.libraries.builtins.ellipsis.EllipsisNew
             libtype object*
             param this type it.unive.lisa.type.Untyped::INSTANCE
-    method staticmethod: it.unive.pylisa.libraries.builtins.functions.StaticMethod
-        type it.unive.lisa.type.Untyped::INSTANCE
-        param f type it.unive.lisa.type.Untyped::INSTANCE

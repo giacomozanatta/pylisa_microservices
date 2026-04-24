@@ -9,6 +9,8 @@ import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
 import it.unive.lisa.interprocedural.context.ContextBasedAnalysis;
 import it.unive.lisa.listeners.BottomTopListener;
 import it.unive.lisa.listeners.TracingListener;
+import it.unive.lisa.outputs.JSONReportDumper;
+import it.unive.lisa.outputs.JSONResults;
 import it.unive.lisa.program.Program;
 import it.unive.pylisa.analysis.PyFieldSensitivePointBasedHeap;
 import it.unive.pylisa.analysis.constants.ConstantPropagation;
@@ -142,7 +144,7 @@ public class Evaluation {
 		// conf.outputs.add(new HtmlResults<>(false));
 		// conf.outputs.add(new MermaidNetworkResults<>(false));
 		// conf.outputs.add(new ApplicationStructure());
-		// conf.outputs.add(new FinalNetworkMermaidResults<>());
+		conf.outputs.add(new FinalNetworkMermaidResults<>());
 		conf.outputs.add(new FinalNetworkTxtResults<>());
 		conf.interproceduralAnalysis = new ContextBasedAnalysis<>();
 		conf.callGraph = new RTACallGraph();
@@ -167,6 +169,7 @@ public class Evaluation {
 				false);
 		Program program = translator.toLiSAProgram(true);
 		LiSAConfiguration conf = getLisaConf("functions_redeclaration");
+		conf.outputs.add(new JSONResults<>());
 		// conf.outputs.add(new FinalNetworkMermaidResults<>());
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
