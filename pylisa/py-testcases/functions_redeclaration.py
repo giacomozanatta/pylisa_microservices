@@ -24,5 +24,6 @@ A.h = g
 z = B.i() # 40
 b = B()
 b.i = f()
-zz = b.h()
+print(b.i)
+zz = B.h()
 print(y)

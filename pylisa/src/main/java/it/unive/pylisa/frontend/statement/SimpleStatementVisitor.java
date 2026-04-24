@@ -33,7 +33,9 @@ import it.unive.pylisa.cfg.expression.PyAccessInstanceGlobal;
 import it.unive.pylisa.cfg.expression.PyAssign;
 import it.unive.pylisa.cfg.expression.TupleCreation;
 import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyNameRef;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
+import it.unive.pylisa.program.PyClassUnit;
 import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
 import it.unive.pylisa.frontend.expression.DunderMethods;
@@ -242,12 +244,9 @@ public final class SimpleStatementVisitor {
 				String fqName = ctx.imports().getOrDefault(receiverName,
 						ctx.currentModule() != null ? ctx.currentModule().getName() + "." + receiverName
 								: null);
-				if (fqName != null) {
-					for (Unit u : ctx.program().getUnits()) {
-						if (u instanceof CompilationUnit cu && cu.getName().equals(fqName))
-							return support.makeScopedAttributeRef(cu, attr.getTarget(), attr.getLocation());
-					}
-				}
+				CompilationUnit cu = findUnitByQualifiedName(fqName);
+				if (cu != null)
+					return support.makeScopedAttributeRef(cu, attr.getTarget(), attr.getLocation());
 				// Receiver is not a known class — treat as module-level
 				// instance variable. Wrap it in a scoped ref so the heap
 				// domain can resolve it to the correct heap location.
@@ -263,14 +262,30 @@ public final class SimpleStatementVisitor {
 				String fqName = ctx.imports().getOrDefault(receiverName,
 						ctx.currentModule() != null ? ctx.currentModule().getName() + "." + receiverName
 								: null);
-				if (fqName != null) {
-					for (Unit u : ctx.program().getUnits()) {
-						if (u instanceof CompilationUnit cu && cu.getName().equals(fqName))
-							return support.makeScopedAttributeRef(cu, attr.getTarget(), attr.getLocation());
-					}
-				}
+				CompilationUnit cu = findUnitByQualifiedName(fqName);
+				if (cu != null)
+					return support.makeScopedAttributeRef(cu, attr.getTarget(), attr.getLocation());
 				return new PyAccessInstanceGlobal(ctx.currentCFG(), attr.getLocation(), receiver,
 						attr.getTarget());
+			}
+			// Receiver resolved at parse time to a module-level name (e.g. `A` in
+			// `A.h = g` where class A is defined in this module). Without this
+			// branch, the raw AttributeAccess falls through to the runtime
+			// heap-deref path (*($module::A)->h), which the heap domain rewrites
+			// to PUSHANY because the class is not heap-allocated — LiSA then
+			// rejects PUSHANY as a non-identifier LHS. By resolving the class
+			// unit up-front, we emit a clean $<class>::<member> global.
+			if (receiver instanceof PyNameRef nameRef) {
+				String receiverName = nameRef.getName();
+				String fqName = nameRef.getQualifiedImportHint();
+				if (fqName == null)
+					fqName = ctx.imports().getOrDefault(receiverName,
+							ctx.currentModule() != null ? ctx.currentModule().getName() + "." + receiverName
+									: null);
+				CompilationUnit cu = findUnitByQualifiedName(fqName);
+				if (cu != null)
+					return support.makeScopedAttributeRef(cu, attr.getTarget(), attr.getLocation());
+				return target;
 			}
 			return target;
 		}
@@ -300,5 +315,24 @@ public final class SimpleStatementVisitor {
 		}
 
 		return target;
+	}
+
+	// Python classes are registered in the program's unit list with a
+	// location-suffixed name (e.g. `__main__.A@14:0`), so that conditional
+	// redefinitions can coexist. The Python-visible name lives on
+	// PyClassUnit.getBaseName(). Lookup by qualified name must match either.
+	private CompilationUnit findUnitByQualifiedName(
+			String fqName) {
+		if (fqName == null)
+			return null;
+		for (Unit u : ctx.program().getUnits()) {
+			if (!(u instanceof CompilationUnit cu))
+				continue;
+			if (cu.getName().equals(fqName))
+				return cu;
+			if (cu instanceof PyClassUnit pcu && fqName.equals(pcu.getBaseName()))
+				return cu;
+		}
+		return null;
 	}
 }

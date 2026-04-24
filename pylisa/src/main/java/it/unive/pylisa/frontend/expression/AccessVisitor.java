@@ -161,7 +161,10 @@ public final class AccessVisitor {
 	private TrailerOutcome synthesizeSuperCall(
 			PyClassUnit enclosing,
 			TrailerContext t) {
-		String fullName = enclosing.getName();
+		// Use the Python-visible base name (without the `@line:col` identity
+		// suffix): `super(Cls, self)` must reference the bound class name in
+		// the enclosing module, not the allocation-site identity.
+		String fullName = enclosing.getBaseName();
 		String simpleName = fullName.contains(".")
 				? fullName.substring(fullName.lastIndexOf('.') + 1)
 				: fullName;
