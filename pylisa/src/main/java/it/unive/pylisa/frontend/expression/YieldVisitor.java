@@ -1,7 +1,6 @@
 package it.unive.pylisa.frontend.expression;
 
 import it.unive.lisa.program.cfg.statement.Expression;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.Encoding_declContext;
 import it.unive.pylisa.antlr.Python3Parser.SliceopContext;
 import it.unive.pylisa.antlr.Python3Parser.Star_exprContext;
@@ -36,37 +35,37 @@ public final class YieldVisitor {
 
 	public Object visitYield_expr(
 			Yield_exprContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitYield_arg(
 			Yield_argContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitStar_expr(
 			Star_exprContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitEncoding_decl(
 			Encoding_declContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitTrailer(
 			TrailerContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitSubscriptlist(
 			SubscriptlistContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitSliceop(
 			SliceopContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public List<Expression> extractExpressionsFromYieldArg(

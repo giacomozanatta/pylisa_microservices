@@ -57,7 +57,7 @@ public final class LiteralVisitor {
 		if (pctx.STRING().size() > 0)
 			return support.strip(support.getLocation(pctx), pctx.STRING(0).getText());
 		if (pctx.yield_expr() != null)
-			throw new UnsupportedStatementException();
+			return support.rejectUnsupported(pctx, "yield expression in atom");
 		if (pctx.OPEN_BRACE() == null && pctx.dictorsetmaker() != null)
 			return visitDictorsetmaker(pctx.dictorsetmaker());
 		if (pctx.OPEN_BRACK() != null)
@@ -68,7 +68,7 @@ public final class LiteralVisitor {
 			return visitDictOrSetLiteral(pctx);
 		if (pctx.ELLIPSIS() != null)
 			return new PyEllipsisLiteral(ctx.currentCFG(), support.getLocation(pctx));
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx, "atom variant");
 	}
 
 	private Expression visitNameAtom(
@@ -84,8 +84,7 @@ public final class LiteralVisitor {
 				support.getLocation(pctx), i.value());
 		case PythonNumericLiteral.FloatLit f -> new Float32Literal(ctx.currentCFG(),
 				support.getLocation(pctx), f.value());
-		case PythonNumericLiteral.ComplexLit c -> throw new UnsupportedStatementException(
-				"complex numbers are not supported (at " + support.getLocation(pctx) + ")");
+		case PythonNumericLiteral.ComplexLit c -> support.rejectUnsupported(pctx, "complex literal");
 		};
 	}
 
@@ -98,7 +97,7 @@ public final class LiteralVisitor {
 	private Expression visitTupleOrParenthesized(
 			AtomContext pctx) {
 		if (pctx.yield_expr() != null)
-			throw new UnsupportedStatementException("yield expressions not supported");
+			return support.rejectUnsupported(pctx, "yield expression in parens");
 		List<Expression> sts = extractExpressionsFromTestlist_comp(pctx.testlist_comp());
 		if (sts.size() <= 1)
 			return sts.isEmpty() ? new TupleCreation(ctx.currentCFG(), support.getLocation(pctx)) : sts.get(0);
@@ -129,20 +128,20 @@ public final class LiteralVisitor {
 			return new SetCreation(ctx.currentCFG(), support.getLocation(pctx),
 					values.toArray(Expression[]::new));
 		}
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx, "dict comprehension");
 	}
 
 	public Expression visitTestlist_comp(
 			Testlist_compContext pctx) {
 		if (pctx.comp_for() != null)
-			throw new UnsupportedStatementException();
+			return support.rejectUnsupported(pctx, "generator comprehension");
 		return visitTestOrStar(pctx.testOrStar(0));
 	}
 
 	public Expression visitTestOrStar(
 			TestOrStarContext pctx) {
 		if (pctx.star_expr() != null)
-			throw new UnsupportedStatementException();
+			return support.rejectUnsupported(pctx, "star expression in testOrStar");
 		return ctx.expr().visitTest(pctx.test());
 	}
 

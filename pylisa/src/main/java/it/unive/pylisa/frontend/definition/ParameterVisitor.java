@@ -3,7 +3,6 @@ package it.unive.pylisa.frontend.definition;
 import it.unive.lisa.program.ClassUnit;
 import it.unive.lisa.type.ReferenceType;
 import it.unive.lisa.type.Untyped;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.ParametersContext;
 import it.unive.pylisa.antlr.Python3Parser.StarargsContext;
 import it.unive.pylisa.antlr.Python3Parser.TfpdefContext;
@@ -115,7 +114,7 @@ public final class ParameterVisitor {
 
 	public Object visitVarargslist(
 			VarargslistContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public String visitVfpdef(

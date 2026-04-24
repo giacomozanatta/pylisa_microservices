@@ -9,7 +9,6 @@ import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.cfg.statement.call.Call.CallType;
 import it.unive.lisa.program.cfg.statement.call.UnresolvedCall;
 import it.unive.lisa.program.cfg.statement.evaluation.LeftToRightEvaluation;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.Break_stmtContext;
 import it.unive.pylisa.antlr.Python3Parser.Continue_stmtContext;
 import it.unive.pylisa.antlr.Python3Parser.Flow_stmtContext;
@@ -73,7 +72,7 @@ public final class FlowControlVisitor {
 		if (pctx.break_stmt() != null)
 			return visitBreak_stmt(pctx.break_stmt());
 
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Statement visitReturn_stmt(
@@ -102,11 +101,11 @@ public final class FlowControlVisitor {
 
 	public Object visitYield_stmt(
 			Yield_stmtContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitRaise_stmt(
 			Raise_stmtContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 }

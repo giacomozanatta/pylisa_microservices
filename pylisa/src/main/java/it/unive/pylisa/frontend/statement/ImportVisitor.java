@@ -5,7 +5,6 @@ import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.NoOp;
 import it.unive.lisa.program.cfg.statement.Statement;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.Dotted_as_nameContext;
 import it.unive.pylisa.antlr.Python3Parser.Dotted_as_namesContext;
 import it.unive.pylisa.antlr.Python3Parser.Dotted_nameContext;
@@ -121,22 +120,22 @@ public final class ImportVisitor {
 
 	public Object visitImport_as_name(
 			Import_as_nameContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitDotted_as_name(
 			Dotted_as_nameContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitImport_as_names(
 			Import_as_namesContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Object visitDotted_as_names(
 			Dotted_as_namesContext pctx) {
-		throw new UnsupportedStatementException();
+		return support.rejectUnsupported(pctx);
 	}
 
 	public Expression visitDotted_name(
