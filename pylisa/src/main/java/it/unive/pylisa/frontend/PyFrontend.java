@@ -1,6 +1,7 @@
 package it.unive.pylisa.frontend;
 
 import it.unive.lisa.AnalysisSetupException;
+import it.unive.lisa.frontend.LiSAFrontend;
 import it.unive.lisa.program.Program;
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.SyntheticLocation;
@@ -35,7 +36,7 @@ import org.apache.logging.log4j.Logger;
  * visitors (expression / statement / definition) translate Python AST into LiSA
  * IR.
  */
-public final class PyFrontend {
+public final class PyFrontend implements LiSAFrontend {
 
 	private static final Logger LOG = LogManager.getLogger(PyFrontend.class);
 
@@ -164,6 +165,7 @@ public final class PyFrontend {
 		return strict;
 	}
 
+	@Override
 	public Program toLiSAProgram() throws IOException, AnalysisSetupException {
 		return toLiSAProgram(true);
 	}
