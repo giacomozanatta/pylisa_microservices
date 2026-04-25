@@ -1,8 +1,8 @@
 package it.unive.pylisa.testutil;
 
 import it.unive.lisa.analysis.SimpleAbstractDomain;
-import it.unive.lisa.analysis.heap.pointbased.FieldSensitivePointBasedHeap;
 import it.unive.lisa.conf.LiSAConfiguration;
+import it.unive.pylisa.analysis.PyFieldSensitivePointBasedHeap;
 import it.unive.lisa.interprocedural.ReturnTopPolicy;
 import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
 import it.unive.lisa.interprocedural.context.ContextBasedAnalysis;
@@ -42,7 +42,7 @@ public final class LiSAConfigs {
 		conf.callGraph = new RTACallGraph();
 		conf.openCallPolicy = ReturnTopPolicy.INSTANCE;
 
-		FieldSensitivePointBasedHeap heap = new FieldSensitivePointBasedHeap();
+		PyFieldSensitivePointBasedHeap heap = new PyFieldSensitivePointBasedHeap();
 		PythonInferredTypes type = new PythonInferredTypes();
 		ConstantPropagation domain = new ConstantPropagation();
 		conf.analysis = new SimpleAbstractDomain<>(heap, domain, type);

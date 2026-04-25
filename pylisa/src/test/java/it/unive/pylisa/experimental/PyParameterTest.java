@@ -2,7 +2,7 @@ package it.unive.pylisa.experimental;
 
 import it.unive.lisa.LiSA;
 import it.unive.lisa.analysis.SimpleAbstractDomain;
-import it.unive.lisa.analysis.heap.pointbased.FieldSensitivePointBasedHeap;
+import it.unive.pylisa.analysis.PyFieldSensitivePointBasedHeap;
 import it.unive.lisa.analysis.types.InferredTypes;
 import it.unive.lisa.conf.LiSAConfiguration;
 import it.unive.lisa.interprocedural.ReturnTopPolicy;
@@ -36,7 +36,7 @@ public class PyParameterTest {
 		conf.callGraph = new RTACallGraph();
 		conf.openCallPolicy = ReturnTopPolicy.INSTANCE;
 
-		FieldSensitivePointBasedHeap heap = new FieldSensitivePointBasedHeap();
+		PyFieldSensitivePointBasedHeap heap = new PyFieldSensitivePointBasedHeap();
 
 		InferredTypes type = new InferredTypes();
 
