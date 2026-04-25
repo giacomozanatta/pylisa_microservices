@@ -1,0 +1,30 @@
+diff --git a/pylisa/src/main/resources/libraries/stdlib.txt b/pylisa/src/main/resources/libraries/stdlib.txt
+index a74b5fe..3c224af 100755
+--- a/pylisa/src/main/resources/libraries/stdlib.txt
++++ b/pylisa/src/main/resources/libraries/stdlib.txt
+@@ -23,7 +23,14 @@ library builtins:
+             type it.unive.lisa.program.type.BoolType::INSTANCE
+             param this libtype sequence*
+             param item type it.unive.lisa.type.Untyped::INSTANCE
+-    class list extends builtins.sequence
++    class list extends builtins.sequence:
++        method __init__: it.unive.pylisa.libraries.builtins.list.ListInit
++            type it.unive.lisa.type.Untyped::INSTANCE
++            param this libtype list*
++        instance method append: it.unive.pylisa.libraries.builtins.list.ListAppendMethod
++            type it.unive.lisa.type.Untyped::INSTANCE
++            param this libtype list*
++            param item type it.unive.lisa.type.Untyped::INSTANCE
+     class set extends builtins.sequence
+     class dict extends builtins.sequence
+     class tuple extends builtins.sequence
+@@ -31,6 +38,9 @@ library builtins:
+     method staticmethod: it.unive.pylisa.libraries.builtins.functions.StaticMethod
+         type it.unive.lisa.type.Untyped::INSTANCE
+         param f type it.unive.lisa.type.Untyped::INSTANCE
++    method len: it.unive.pylisa.libraries.SequenceLen
++        type it.unive.lisa.program.type.Int32Type::INSTANCE
++        param obj type it.unive.lisa.type.Untyped::INSTANCE
+     class ellipsis extends builtins.object:
+         method __new__: it.unive.pylisa.libraries.builtins.ellipsis.EllipsisNew
+             libtype object*
