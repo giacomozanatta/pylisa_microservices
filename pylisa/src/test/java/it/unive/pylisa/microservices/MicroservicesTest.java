@@ -7,16 +7,17 @@ import it.unive.lisa.analysis.network.NetworkAwareAbstractDomain;
 import it.unive.lisa.conf.LiSAConfiguration;
 import it.unive.lisa.interprocedural.ReturnTopPolicy;
 import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
+import it.unive.lisa.interprocedural.network.NetworkAwareContextBasedAnalysis;
 import it.unive.lisa.outputs.HtmlResults;
 import it.unive.lisa.outputs.JSONResults;
+import it.unive.lisa.outputs.network.ApplicationStructure;
+import it.unive.lisa.outputs.network.FinalNetworkMermaidResults;
+import it.unive.lisa.outputs.network.MermaidNetworkResults;
 import it.unive.lisa.program.Program;
 import it.unive.pylisa.analysis.constants.ConstantPropagation;
 import it.unive.pylisa.analysis.types.PythonInferredTypes;
 import it.unive.pylisa.frontend.PyFrontend;
-import it.unive.pylisa.interprocedural.NetworkAwareContextBasedAnalysis;
-import it.unive.pylisa.outputs.ApplicationStructure;
-import it.unive.pylisa.outputs.FinalNetworkMermaidResults;
-import it.unive.pylisa.outputs.MermaidNetworkResults;
+import it.unive.pylisa.interprocedural.PyHandlerExtractor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -94,7 +95,7 @@ public class MicroservicesTest {
 		ConstantPropagation domain = new ConstantPropagation();
 		conf.analysis = new NetworkAwareAbstractDomain<>(
 				new SimpleAbstractDomain<>(heap, domain, type),
-				NetworkAwareContextBasedAnalysis.pyFunctionNameExtractor());
+				PyHandlerExtractor.handlerNameExtractor());
 		return conf;
 	}
 

@@ -18,7 +18,7 @@ import org.opentest4j.AssertionFailedError;
 
 /**
  * Compares a generated {@code final-network.txt} (produced by
- * {@link it.unive.pylisa.outputs.FinalNetworkTxtResults}) against a checked-in
+ * {@link it.unive.lisa.outputs.network.FinalNetworkTxtResults}) against a checked-in
  * ground-truth file.
  * <p>
  * The comparison is <strong>endpoint-oriented</strong>: the set of

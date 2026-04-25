@@ -11,15 +11,15 @@ import it.unive.lisa.listeners.BottomTopListener;
 import it.unive.lisa.listeners.TracingListener;
 import it.unive.lisa.outputs.JSONReportDumper;
 import it.unive.lisa.outputs.JSONResults;
+import it.unive.lisa.outputs.network.FinalNetworkMermaidResults;
+import it.unive.lisa.outputs.network.FinalNetworkTxtResults;
+import it.unive.lisa.outputs.network.MermaidNetworkResults;
 import it.unive.lisa.program.Program;
 import it.unive.pylisa.analysis.PyFieldSensitivePointBasedHeap;
 import it.unive.pylisa.analysis.constants.ConstantPropagation;
 import it.unive.pylisa.analysis.types.PythonInferredTypes;
 import it.unive.pylisa.frontend.PyFrontend;
-import it.unive.pylisa.interprocedural.NetworkAwareContextBasedAnalysis;
-import it.unive.pylisa.outputs.FinalNetworkMermaidResults;
-import it.unive.pylisa.outputs.FinalNetworkTxtResults;
-import it.unive.pylisa.outputs.MermaidNetworkResults;
+import it.unive.pylisa.interprocedural.PyHandlerExtractor;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -158,7 +158,7 @@ public class Evaluation {
 		ConstantPropagation domain = new ConstantPropagation();
 		conf.analysis = new NetworkAwareAbstractDomain<>(
 				new SimpleAbstractDomain<>(heap, domain, type),
-				NetworkAwareContextBasedAnalysis.pyFunctionNameExtractor());
+				PyHandlerExtractor.handlerNameExtractor());
 		return conf;
 	}
 
