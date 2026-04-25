@@ -1,6 +1,6 @@
 package it.unive.pylisa.classes;
 
-import static it.unive.pylisa.microservices.MicroservicesTest.getLisaConf;
+import static it.unive.pylisa.testutil.LiSAConfigs.getDefaultConf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -32,7 +32,7 @@ public class Classes {
 				"py-testcases/classes/class1.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("classes/class1");
+		LiSAConfiguration conf = getDefaultConf("classes/class1");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 
@@ -49,7 +49,7 @@ public class Classes {
 				"py-testcases/classes/global_fields.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("classes/global_fields");
+		LiSAConfiguration conf = getDefaultConf("classes/global_fields");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 
@@ -78,8 +78,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("normal")
-				.get("state").get("Analysis State");
+		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");
@@ -190,8 +189,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("normal")
-				.get("state").get("Analysis State");
+		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");
@@ -297,8 +295,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("normal")
-				.get("state").get("Analysis State");
+		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");
@@ -343,7 +340,7 @@ public class Classes {
 				"py-testcases/classes/class2.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("classes/class2");
+		LiSAConfiguration conf = getDefaultConf("classes/class2");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 	}
@@ -360,7 +357,7 @@ public class Classes {
 		assertNotNull(program.getUnit("builtins.object.__new__"), "missing __new__ builtins.object.__new__.");
 		assertNotNull(program.getUnit("builtins.object.__init__"), "missing __init__ builtins.object.__init__.");
 		assertNotNull(program.getUnit("builtins.object.super"), "missing super builtins.object.super.");
-		LiSAConfiguration conf = getLisaConf("classes/staticmethod");
+		LiSAConfiguration conf = getDefaultConf("classes/staticmethod");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 		assertClassMethodCorrect("classes/staticmethod");
@@ -379,7 +376,7 @@ public class Classes {
 		assertNotNull(program.getUnit("builtins.object.__init__"), "missing __init__ builtins.object.__init__.");
 		// assertNotNull(program.getUnit("builtins.object.super"), "missing
 		// super builtins.object.super.");
-		LiSAConfiguration conf = getLisaConf("classes/classes_super");
+		LiSAConfiguration conf = getDefaultConf("classes/classes_super");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 		assertSuperClassesCorrect("classes/classes_super");
@@ -403,8 +400,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("normal")
-				.get("state").get("Analysis State");
+		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");

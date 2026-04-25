@@ -1,6 +1,6 @@
 package it.unive.pylisa;
 
-import static it.unive.pylisa.microservices.MicroservicesTest.getLisaConf;
+import static it.unive.pylisa.testutil.LiSAConfigs.getDefaultConf;
 
 import it.unive.lisa.LiSA;
 import it.unive.lisa.conf.LiSAConfiguration;
@@ -16,7 +16,7 @@ public class DBPool {
 				"py-testcases/mining-wave/database.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("database");
+		LiSAConfiguration conf = getDefaultConf("database");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 	}
@@ -27,7 +27,7 @@ public class DBPool {
 				"py-testcases/mining-wave/config.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("config");
+		LiSAConfiguration conf = getDefaultConf("config");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 	}

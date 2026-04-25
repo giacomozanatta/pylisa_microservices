@@ -1,4 +1,3 @@
 rootProject.name = 'pylisa'
 
 includeBuild("/Users/giacomo/02-work/03-microservices/lisa/lisa/lisa")
-includeBuild("/Users/giacomo/02-work/03-microservices/lisa-network/lisa-network/lisa-network")

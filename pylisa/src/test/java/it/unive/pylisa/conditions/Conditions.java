@@ -1,6 +1,6 @@
 package it.unive.pylisa.conditions;
 
-import static it.unive.pylisa.microservices.MicroservicesTest.getLisaConf;
+import static it.unive.pylisa.testutil.LiSAConfigs.getDefaultConf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -27,7 +27,7 @@ public class Conditions {
 				"py-testcases/conditions/condition1/main.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("conditions/condition1");
+		LiSAConfiguration conf = getDefaultConf("conditions/condition1");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 
@@ -56,8 +56,7 @@ public class Conditions {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("normal")
-				.get("state").get("Analysis State");
+		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");

@@ -1,6 +1,6 @@
 package it.unive.pylisa.imports;
 
-import static it.unive.pylisa.microservices.MicroservicesTest.getLisaConf;
+import static it.unive.pylisa.testutil.LiSAConfigs.getDefaultConf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -28,7 +28,7 @@ public class Imports {
 				"py-testcases/imports/import2/main.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("imports/import2");
+		LiSAConfiguration conf = getDefaultConf("imports/import2");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 
@@ -45,7 +45,7 @@ public class Imports {
 				"py-testcases/imports/import3/main.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("imports/import3");
+		LiSAConfiguration conf = getDefaultConf("imports/import3");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 
@@ -56,21 +56,18 @@ public class Imports {
 		assertImports("imports/import3");
 	}
 
-	@Test
-	public void imports4() throws IOException {
-		PyFrontend translator = new PyFrontend(
-				"py-testcases/imports/import4/api.py",
-				false);
-		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("imports/import4");
-		LiSA lisa = new LiSA(conf);
-		lisa.run(program);
-
-		assertNotNull(program.getUnit("builtins.object.__new__"), "missing __new__ builtins.object.__new__.");
-		assertNotNull(program.getUnit("builtins.object.__init__"), "missing __init__ builtins.object.__init__.");
-		assertNotNull(program.getUnit("builtins.object.super"), "missing super builtins.object.super.");
-		assertImports4("imports/import4");
-	}
+	// imports4() lived here previously: it tests that a multi-file
+	// `from routes import miningcore` chain resolves miningcore.router to
+	// fastapi.APIRouter*. That assertion needs fastapi.txt + the FastAPI
+	// Java backends, which moved to lisa-network as part of the
+	// pylisa<->lisa-network decoupling. The full-resolution test now lives
+	// at it.unive.lisa.microservices.imports.ImportsTest.imports4().
+	//
+	// FOLLOW-UP: re-add a pylisa-side imports4 that asserts the degraded
+	// fallback when fastapi is *not* on the classpath: the open-call
+	// fallback should make `miningcore.router` resolve to TOP / Unknown
+	// Module, while `z = 3` still resolves to the constant "3". This
+	// verifies the type system stays sound under missing-library fallback.
 
 	@Test
 	public void imports1() throws IOException {
@@ -78,7 +75,7 @@ public class Imports {
 				"py-testcases/imports/import1/main.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("imports/import1");
+		LiSAConfiguration conf = getDefaultConf("imports/import1");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 
@@ -87,39 +84,6 @@ public class Imports {
 		assertNotNull(program.getUnit("builtins.object.super"), "missing super builtins.object.super.");
 
 		assertImports("imports/import1");
-	}
-
-	private void assertImports4(
-			String workdir)
-			throws IOException {
-		Path outputDir = Path.of("tests", workdir);
-		Optional<Path> reportJson;
-		try (Stream<Path> files = Files.list(outputDir)) {
-			reportJson = files
-					.filter(path -> path.getFileName().toString().startsWith("untyped___main__.$init()_"))
-					.filter(path -> path.getFileName().toString().endsWith(".graph.json"))
-					.max(Comparator.comparing(path -> path.getFileName().toString()));
-		}
-
-		assertTrue(reportJson.isPresent(), "Missing __main__.$init() ");
-
-		ObjectMapper mapper = new ObjectMapper();
-
-		JsonNode root = mapper.readTree(reportJson.get().toFile());
-		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("normal")
-				.get("state").get("Analysis State");
-		JsonNode heap = exitAnalysisState.get("heap");
-		JsonNode type = exitAnalysisState.get("type");
-		JsonNode value = exitAnalysisState.get("value");
-		assertNotNull(value);
-		assertNotNull(type);
-		assertNotNull(heap);
-		assertNotNull(value.get("$__main__::z"), "$_main::z must be not null");
-		assertEquals("\"3\"", value.get("$__main__::z").toString());
-		assertEquals("\"3\"", value.get("$__main__::z").toString());
-		System.out.println("[T] $__main__::y == [\"fastapi.APIRouter*\"]");
-		assertEquals("[\"fastapi.APIRouter*\"]", type.get("$__main__::y").toString());
 	}
 
 	private void assertImports(
@@ -140,8 +104,7 @@ public class Imports {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("normal")
-				.get("state").get("Analysis State");
+		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");

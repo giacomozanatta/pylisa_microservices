@@ -1,6 +1,6 @@
 package it.unive.pylisa.ros2;
 
-import static it.unive.pylisa.microservices.MicroservicesTest.getLisaConf;
+import static it.unive.pylisa.testutil.LiSAConfigs.getDefaultConf;
 
 import it.unive.lisa.LiSA;
 import it.unive.lisa.conf.LiSAConfiguration;
@@ -17,7 +17,7 @@ public class ROS2test {
 				"ros-tests/fruit_collectors/vision_node.py",
 				false);
 		Program program = translator.toLiSAProgram(true);
-		LiSAConfiguration conf = getLisaConf("microservices-02");
+		LiSAConfiguration conf = getDefaultConf("microservices-02");
 		LiSA lisa = new LiSA(conf);
 		lisa.run(program);
 	}
