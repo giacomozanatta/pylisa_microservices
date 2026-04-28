@@ -1,3 +1,10 @@
 rootProject.name = 'pylisa'
 
-includeBuild("/Users/giacomo/02-work/03-microservices/lisa/lisa/lisa")
+// Relative includeBuild path: works on any host as long as the four
+// repos sit side-by-side under a common parent (Mac laptop, Linux server,
+// docker container, …). The expected layout is:
+//   <parent>/lisa/lisa/lisa/
+//   <parent>/pylisa_microservices_lisa_upgrade/pylisa/   (this repo)
+//   <parent>/jlisa/jlisa/
+//   <parent>/lisa-network/lisa-network/lisa-network/
+includeBuild("../../lisa/lisa/lisa")
