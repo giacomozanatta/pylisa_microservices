@@ -22,6 +22,7 @@ import it.unive.pylisa.frontend.ParserSupport;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -141,7 +142,7 @@ public final class LiteralVisitor {
 	public Expression visitTestOrStar(
 			TestOrStarContext pctx) {
 		if (pctx.star_expr() != null)
-			return support.rejectUnsupported(pctx, "star expression in testOrStar");
+			return visitStarExprUnsound(pctx.star_expr(), pctx);
 		return ctx.expr().visitTest(pctx.test());
 	}
 
@@ -156,8 +157,29 @@ public final class LiteralVisitor {
 		if (pctx.namedexpr_test() != null)
 			return ctx.expr().visitNamedexpr_test(pctx.namedexpr_test());
 		if (pctx.star_expr() != null)
-			return support.rejectUnsupported(pctx, "star expression in testOrStar");
+			return visitStarExprUnsound(pctx.star_expr(), pctx);
 		return visitTestOrStar(pctx.testOrStar(0));
+	}
+
+	/**
+	 * **Unsound translation** of a {@code star_expr} ({@code *expr}) used in
+	 * tuple/list literal contexts (e.g. {@code [*xs, y]}, {@code (*head, tail)}).
+	 * Python's iterable-unpacking semantics inline every element of the iterable
+	 * into the surrounding collection. We don't model that here: we visit the
+	 * inner expression and return it as-is, treating {@code *xs} as {@code xs}.
+	 * Routing/network analysis is unaffected (the iterable's identity is what
+	 * matters for handler resolution); precision is lost where the elements of
+	 * the unpacked iterable would feed downstream value-domain reasoning.
+	 * <p>
+	 * Same shape as {@code DecoratorVisitor}'s class-decorator skip-and-log:
+	 * record an {@code UNSOUND} diagnostic so the missing modeling is visible
+	 * in the run output, then keep the analysis reachable.
+	 */
+	private Expression visitStarExprUnsound(
+			it.unive.pylisa.antlr.Python3Parser.Star_exprContext starCtx,
+			ParserRuleContext outerCtx) {
+		support.unsound(outerCtx, "star expression in testOrStar (treating `*xs` as `xs` — iterable-unpack semantics dropped)");
+		return ctx.expr().visitExpr(starCtx.expr());
 	}
 
 	public List<Expression> extractExpressionsFromTestlist_comp(
