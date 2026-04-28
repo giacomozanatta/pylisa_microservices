@@ -4,11 +4,11 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.SemanticOracle;
 import it.unive.lisa.analysis.heap.pointbased.FieldSensitivePointBasedHeap;
 import it.unive.lisa.lattices.ExpressionSet;
+import it.unive.lisa.lattices.heap.allocations.HeapAllocationSite;
 import it.unive.lisa.lattices.heap.allocations.HeapEnvWithFields;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.heap.AccessChild;
-import it.unive.lisa.symbolic.value.PushAny;
 
 /**
  * Python-specific {@link FieldSensitivePointBasedHeap} that is tolerant of
@@ -36,16 +36,29 @@ import it.unive.lisa.symbolic.value.PushAny;
  * transitively imports the module.
  * <p>
  * <strong>Unsound fix:</strong> when the receiver of an {@code AccessChild}
- * cannot be resolved to any allocation, we return a single {@link PushAny}
- * expression with the same static type as the access. {@code PushAny} is the
- * standard "we don't know" placeholder: value domains evaluate it to top, type
- * domains keep the declared type, and the heap domain treats it as opaque. This
- * is deliberately unsound — we lose the precision of "obj.attr must alias these
- * specific sites" — but it preserves the reachability of the analysis state and
- * therefore the information carried by value, type, and heap lattices for the
- * <em>rest</em> of the CFG. Without this fallback, we observed ~18k bot-state
- * transitions that cascaded into 140+ submodule {@code $init}s inheriting a
- * bottom value lattice.
+ * cannot be resolved to any allocation, we synthesise a single weak
+ * {@link HeapAllocationSite} keyed on the access's program point. A
+ * {@code HeapAllocationSite} is a real {@link it.unive.lisa.symbolic.value.Identifier}
+ * (it extends {@code HeapLocation}), so it satisfies the contract of
+ * {@link it.unive.lisa.analysis.Analysis#assign} — which iterates the
+ * rewrite result and rejects anything that is not an {@code Identifier}.
+ * Pre-this change we returned a {@link PushAny} here, which is <em>not</em>
+ * an {@code Identifier} and caused
+ * {@code SemanticException("Rewriting … did not produce an identifier: PUSHANY")}
+ * to be thrown for any assignment whose LHS rewrote through this fallback,
+ * killing the whole analysis on real Python code (~8 repos in the bulk eval).
+ * <p>
+ * The synthetic site is marked weak so multiple writes into "the same
+ * unresolved access" lub rather than overwrite, and it carries the access's
+ * static type so the type domain stays consistent. The location name is
+ * derived from the access's program point so repeated rewrites of the same
+ * access produce the same identifier — necessary for the value-domain to
+ * recognise re-reads. This is deliberately unsound: we lose the precision
+ * of "obj.attr must alias these specific sites", but we preserve the
+ * reachability of the analysis state and the information carried by value,
+ * type, and heap lattices for the <em>rest</em> of the CFG. Without this
+ * fallback we observed ~18k bot-state transitions that cascaded into 140+
+ * submodule {@code $init}s inheriting a bottom value lattice.
  * <p>
  * All other rewriting cases are delegated unchanged to the parent class.
  */
@@ -66,13 +79,21 @@ public class PyFieldSensitivePointBasedHeap extends FieldSensitivePointBasedHeap
 			if (n == 1 || n % 500 == 0)
 				org.apache.logging.log4j.LogManager.getLogger(PyFieldSensitivePointBasedHeap.class).info(
 						"[PYHEAP-FALLBACK] hits={} expr={} pp={}", n, expression, pp.getLocation());
-			// unsound: we do not know which allocation site the receiver
-			// refers to; returning the expression itself is rejected by the
-			// single-rewrite branch (AccessChild is a HeapExpression, not a
-			// ValueExpression), so we fall back to PushAny to keep the
-			// analysis reachable. See the class-level javadoc for the full
-			// rationale.
-			return new ExpressionSet(new PushAny(expression.getStaticType(), expression.getCodeLocation()));
+			// We don't know which allocation site the receiver points to.
+			// Materialise a fresh weak HeapAllocationSite keyed on this
+			// program point so the result is a valid Identifier — PushAny
+			// would not be, and lisa-sdk's Analysis.assign throws on
+			// non-Identifier rewrites (which used to kill ~8 repos in the
+			// bulk eval). The site's name is stable across re-rewrites of
+			// the same access (same pp → same name) so the value-domain
+			// can recognise re-reads. See the class-level javadoc for the
+			// full rationale and soundness trade-off.
+			String name = "$pyheap@" + pp.getLocation();
+			return new ExpressionSet(new HeapAllocationSite(
+					expression.getStaticType(),
+					name,
+					true,
+					expression.getCodeLocation()));
 		}
 		return result;
 	}
