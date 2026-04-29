@@ -48,17 +48,19 @@ public final class FunctionalVisitor {
 	 * explicit {@code x = rhs} assignment; the caller threads the prelude
 	 * into its CFG block before the guard node that consumes the value.
 	 * <p>
-	 * If no prelude frame is active the walrus cannot be hoisted cleanly, so
-	 * the construct is rejected via {@code support.rejectUnsupported} instead
-	 * of silently dropping the side-effect.
+	 * **Unsound fallback:** if no prelude frame is active (walrus inside a
+	 * comprehension, default-value expression, lambda body, …) the assignment
+	 * cannot be hoisted cleanly. Rather than aborting the whole analysis we
+	 * record an {@code UNSOUND} diagnostic and return the RHS as the value of
+	 * the walrus expression, dropping the binding side-effect. Same shape as
+	 * {@link it.unive.pylisa.cfg.expression.StarExpression}'s skip-and-log
+	 * for {@code *args} in unsupported positions; both losses are surfaced as
+	 * warnings so the missing modeling stays visible.
 	 */
 	public Expression visitNamedexpr_test(
 			Namedexpr_testContext pctx) {
 		if (pctx.COLONEQ() == null)
 			return visitTest(pctx.test(0));
-
-		if (!ctx.hasActiveWalrusPrelude())
-			return support.rejectUnsupported(pctx, ":= walrus in unsupported position");
 
 		// Mirror SimpleStatementVisitor.visitExpr_stmt: for the walrus LHS we
 		// want a raw VariableRef, not a scoped unit-prepended access, so the
@@ -72,10 +74,30 @@ public final class FunctionalVisitor {
 		} finally {
 			ctx.shouldPrependUnitAccess(prevPrepend);
 		}
-		if (!(lhsExpr instanceof VariableRef targetVar))
-			return support.rejectUnsupported(pctx, ":= walrus with non-identifier LHS");
+		if (!(lhsExpr instanceof VariableRef targetVar)) {
+			// Non-identifier LHS (very rare in practice). Drop the binding,
+			// return the RHS — same shape as the no-prelude fallback below.
+			support.unsound(pctx,
+					":= walrus with non-identifier LHS — binding dropped, returning the RHS value");
+			return visitTest(pctx.test(1));
+		}
 
 		Expression rhs = visitTest(pctx.test(1));
+
+		if (!ctx.hasActiveWalrusPrelude()) {
+			// No prelude frame to hoist the assignment into (walrus inside a
+			// comprehension, default value, lambda body, ...). The binding
+			// side-effect is lost; downstream reads of `targetVar` will see
+			// the variable as un-bound by this expression. For routing
+			// analysis this is almost always immaterial — walrus is typically
+			// a cache/early-bind helper, not a control-flow value reachable
+			// by handlers.
+			support.unsound(pctx,
+					":= walrus in unsupported position — binding to `"
+							+ targetVar.getName() + "` is dropped, returning the RHS value");
+			return rhs;
+		}
+
 		ctx.stmt().simple().declareAssignedNames(targetVar);
 		Expression scopedTarget = ctx.stmt().simple().scopeAssignmentTarget(targetVar);
 		ctx.addWalrusPrelude(new PyAssign(ctx.currentCFG(), support.getLocation(pctx), scopedTarget, rhs));
