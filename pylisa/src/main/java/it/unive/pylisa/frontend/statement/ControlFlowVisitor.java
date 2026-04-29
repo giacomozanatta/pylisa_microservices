@@ -414,8 +414,15 @@ public final class ControlFlowVisitor {
 		// resumes at the try-exit carrying the pre-try state".
 		Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> body = visitSuite(pctx.suite(0));
 		NodeList<CFG, Statement, Edge> block = new NodeList<>(ParserContext.SEQUENTIAL_SINGLETON);
+		// Entry/exit must have DISTINCT locations: Statement.equals compares
+		// by (class, location), so two NoOps with the same source position
+		// would be considered equal and the second would be silently
+		// deduplicated by NodeList.addNode — collapsing the try block. The
+		// entry tracks the `try` keyword; the exit tracks the position of
+		// the last token of the try statement (stop token), which differs
+		// even when the try body is a single line.
 		NoOp entry = new NoOp(ctx.currentCFG(), support.getLocation(pctx));
-		NoOp exit = new NoOp(ctx.currentCFG(), support.getLocation(pctx));
+		NoOp exit = new NoOp(ctx.currentCFG(), support.getStopLocation(pctx));
 		block.addNode(entry);
 		block.addNode(exit);
 		block.mergeWith(body.getMiddle());

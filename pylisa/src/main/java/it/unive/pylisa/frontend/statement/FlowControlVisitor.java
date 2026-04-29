@@ -101,7 +101,26 @@ public final class FlowControlVisitor {
 
 	public Object visitYield_stmt(
 			Yield_stmtContext pctx) {
-		return support.rejectUnsupported(pctx);
+		// Mirror the yield-handling branch of visitFlow_stmt so that yield
+		// reached through the dedicated grammar production (rather than via
+		// flow_stmt) is also translated to a control-flow-preserving node.
+		// Treating yield as a no-op is unsound for generator semantics, but
+		// it keeps the surrounding CFG well-formed — necessary for any
+		// project that uses async generators (notably FastAPI's
+		// `async def lifespan(app): try: yield finally: ...` pattern).
+		support.unsound(pctx, "yield treated as no-op");
+		Yield_argContext yieldArg = pctx.yield_expr().yield_arg();
+		if (yieldArg == null)
+			return new NoOp(ctx.currentCFG(), support.getLocation(pctx));
+		List<Expression> l = ctx.expr().extractExpressionsFromYieldArg(yieldArg);
+		return new UnresolvedCall(
+				ctx.currentCFG(),
+				support.getLocation(pctx),
+				CallType.STATIC,
+				Program.PROGRAM_NAME,
+				"yield from",
+				LeftToRightEvaluation.INSTANCE,
+				l.toArray(new Expression[0]));
 	}
 
 	public Object visitRaise_stmt(

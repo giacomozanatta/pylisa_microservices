@@ -27,13 +27,29 @@ import java.util.Set;
 public class FunctionApply extends NaryExpression {
 	Expression identifier;
 	private final boolean hasReceiver;
+	/**
+	 * Marks call nodes synthesised by the frontend's decorator visitor.
+	 * <p>
+	 * When this flag is set and the call target's runtime type is unresolved
+	 * (e.g. an external decorator like {@code slowapi.Limiter.limit(...)} for
+	 * which no library spec exists), {@link #forwardSemanticsAux} treats the
+	 * call as a pass-through and propagates the inner argument's value
+	 * instead of collapsing to {@code PushAny(Untyped)}. This preserves the
+	 * decorated function's {@link PyFunctionType} so an outer route decorator
+	 * (e.g. {@code @router.post(...)}) can still resolve the handler.
+	 * <p>
+	 * Without this flag, every external decorator wrapping a route handler
+	 * would need its own pluggable-statement library spec just to be
+	 * recognised as transparent.
+	 */
+	private final boolean decoratorApplication;
 
 	public FunctionApply(
 			CFG cfg,
 			CodeLocation location,
 			Expression identifier,
 			Expression[] params) {
-		this(cfg, location, identifier, params, false);
+		this(cfg, location, identifier, params, false, false);
 	}
 
 	public FunctionApply(
@@ -42,10 +58,29 @@ public class FunctionApply extends NaryExpression {
 			Expression identifier,
 			Expression[] params,
 			boolean hasReceiver) {
+		this(cfg, location, identifier, params, hasReceiver, false);
+	}
 
+	public FunctionApply(
+			CFG cfg,
+			CodeLocation location,
+			Expression identifier,
+			Expression[] params,
+			boolean hasReceiver,
+			boolean decoratorApplication) {
 		super(cfg, location, "$FunctionApply", prependReceiver(params, identifier));
 		this.identifier = identifier;
 		this.hasReceiver = hasReceiver;
+		this.decoratorApplication = decoratorApplication;
+	}
+
+	/**
+	 * @return {@code true} when this call was emitted by the decorator
+	 *             visitor and should fall back to argument pass-through if
+	 *             the target's type is unresolved
+	 */
+	public boolean isDecoratorApplication() {
+		return decoratorApplication;
 	}
 
 	@Override
@@ -107,6 +142,17 @@ public class FunctionApply extends NaryExpression {
 			// registered types, which causes an interprocedural explosion /
 			// infinite loop
 			if (identifier instanceof PushAny) {
+				if (decoratorApplication && params.length > 1) {
+					// Generic transparent-decorator fallback (see field
+					// docstring): the call target is fully unknown, but this
+					// node was emitted by the decorator visitor, so propagate
+					// the decorated argument instead of erasing it to TOP.
+					for (SymbolicExpression callback : params[1])
+						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+								callback, this));
+					anyTypeFound = true;
+					continue;
+				}
 				result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
 						new PushAny(Untyped.INSTANCE, getLocation()), this));
 				anyTypeFound = true;
@@ -159,8 +205,14 @@ public class FunctionApply extends NaryExpression {
 											|| rt.getInnerType() instanceof PyClassType)))
 						filtered.add(t);
 				if (filtered.isEmpty() || filtered.size() > 20) {
-					result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-							new PushAny(Untyped.INSTANCE, getLocation()), this));
+					if (decoratorApplication && params.length > 1) {
+						for (SymbolicExpression callback : params[1])
+							result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+									callback, this));
+					} else {
+						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+								new PushAny(Untyped.INSTANCE, getLocation()), this));
+					}
 					anyTypeFound = true;
 					continue;
 				}
@@ -277,8 +329,25 @@ public class FunctionApply extends NaryExpression {
 					// interprocedural, expressions));
 				}
 				if (!handledIdentifier) {
-					result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-							new PushAny(Untyped.INSTANCE, getLocation()), this));
+					if (decoratorApplication && params.length > 1) {
+						// Generic transparent-decorator fallback: the call
+						// target is unresolved (e.g. an external decorator
+						// with no library spec) but this call was emitted by
+						// the decorator visitor, so the conservative,
+						// useful default is to pass the decorated argument
+						// through unchanged. This preserves the inner
+						// PyFunctionType so an outer route decorator can
+						// still resolve the handler — equivalent to what
+						// PassThroughLazyExpression does for opted-in
+						// decorators, but without requiring a per-decorator
+						// library spec.
+						for (SymbolicExpression callback : params[1])
+							result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+									callback, this));
+					} else {
+						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+								new PushAny(Untyped.INSTANCE, getLocation()), this));
+					}
 					anyTypeFound = true;
 				}
 				// result = result.lub(analysis.smallStepSemantics(state,
@@ -286,6 +355,13 @@ public class FunctionApply extends NaryExpression {
 			}
 		}
 		if (!anyTypeFound) {
+			if (decoratorApplication && params.length > 1) {
+				AnalysisState<A> propagated = state.bottomExecution();
+				for (SymbolicExpression callback : params[1])
+					propagated = propagated.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+							callback, this));
+				return propagated;
+			}
 			return interprocedural.getAnalysis().smallStepSemantics(state,
 					new PushAny(Untyped.INSTANCE, getLocation()), this);
 		}

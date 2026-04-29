@@ -86,6 +86,35 @@ public final class ParserSupport {
 		return new SourceCodeLocation(source, getLine(pctx), getCol(pctx));
 	}
 
+	/**
+	 * Like {@link #getLocation(ParserRuleContext)} but anchored at the
+	 * {@code stop} token of the rule rather than the {@code start} — useful
+	 * when a single rule contributes two synthetic statements (e.g. an
+	 * entry and an exit {@link it.unive.lisa.program.cfg.statement.NoOp})
+	 * that need distinct locations to avoid being de-duplicated by
+	 * {@code Statement.equals} (which compares only class + location).
+	 */
+	public SourceCodeLocation getStopLocation(
+			ParserRuleContext pctx) {
+		String source = ctx.filePath();
+		if (pctx != null && pctx.getStop() != null) {
+			org.antlr.v4.runtime.CharStream cs = pctx.getStop().getInputStream();
+			if (cs != null) {
+				String csName = cs.getSourceName();
+				if (csName != null && !csName.isEmpty() && !"<unknown>".equals(csName))
+					source = csName;
+			}
+		}
+		int line = pctx != null && pctx.getStop() != null ? pctx.getStop().getLine() : -1;
+		int col = pctx != null && pctx.getStop() != null
+				? pctx.getStop().getCharPositionInLine()
+				: -1;
+		// Bump col by 1 to differ from any token-aligned location at the
+		// stop position; SourceCodeLocation rejects -1, but any other value
+		// is fine.
+		return new SourceCodeLocation(source, Math.max(line, 0), Math.max(col, 0) + 1);
+	}
+
 	// === diagnostics ===
 
 	public <T> T unsupported(

@@ -49,6 +49,15 @@ public class RangeValue extends TernaryExpression {
 			StatementStore<A> expressions)
 			throws SemanticException {
 		CodeLocation loc = getLocation();
+		// TOP fallback (mirrors ListCreation): if the {@code Slice} type was
+		// never registered (no library spec brought it in), return the
+		// incoming state unchanged rather than crashing the analysis with
+		// "The requested type 'Slice' has not been registered before". The
+		// slice expression's value is then unmodelled — fine for projects
+		// that use slices outside of dataframe code, which is everything
+		// pylisa cares about for route discovery.
+		if (!PyClassType.isRegistered(LibrarySpecificationProvider.SLICE))
+			return state;
 		Type type = PyClassType.lookup(LibrarySpecificationProvider.SLICE);
 		if (left instanceof Skip)
 			left = new Constant(Int32Type.INSTANCE, new RangeBound(0), loc);
