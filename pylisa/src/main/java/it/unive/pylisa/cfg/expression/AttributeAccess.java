@@ -26,13 +26,8 @@ import it.unive.pylisa.program.type.UnknownAttributeType;
 import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class AttributeAccess extends UnaryExpression {
-	private static final Logger LOG = LogManager.getLogger(AttributeAccess.class);
-	private static final AtomicInteger BIG_TYPES_COUNT = new AtomicInteger(0);
 	String target;
 
 	public String getTarget() {
@@ -56,15 +51,6 @@ public class AttributeAccess extends UnaryExpression {
 			StatementStore<A> expressions)
 			throws SemanticException {
 		Set<Type> runTypes = interprocedural.getAnalysis().getRuntimeTypesOf(state, expr, this);
-		if (target.equals("include_router") || target.equals("get") || target.equals("post")) {
-			LOG.info("[AA2-TRACK] .{} on {} runTypes.size={} first-class={} PyClassNames={}", target,
-					getSubExpression(),
-					runTypes.size(),
-					runTypes.isEmpty() ? "none" : runTypes.iterator().next().getClass().getSimpleName(),
-					runTypes.stream().filter(t -> t instanceof PyClassType)
-							.map(t -> ((PyClassType) t).getUnit().getName())
-							.limit(5).toList());
-		}
 		AnalysisState<A> result = state.bottom();
 		boolean resolved = false;
 		for (Type t : runTypes) {
@@ -115,21 +101,6 @@ public class AttributeAccess extends UnaryExpression {
 		}
 
 		if (!resolved) {
-			// Library-method fallback: when the receiver's runtime type set is
-			// empty or carries no PyClassType (observed for variables in deep
-			// CBA sub-contexts whose PyAssign binding didn't propagate), try
-			// to resolve `<target>` as an instance method on known library
-			// classes. This lets `api_router.include_router(...)` or
-			// `@router.get(...)` dispatch to the pluggable even when
-			// `api_router`/`router` itself has no tracked type in this state.
-			ResolvedAccess libFallback = tryLibraryMethodFallback(interprocedural, state);
-			if (libFallback != null) {
-				resolved = true;
-				result = result.lub(interprocedural.getAnalysis().smallStepSemantics(libFallback.state(),
-						libFallback.access(), this));
-			}
-		}
-		if (!resolved) {
 			String owner = deriveUnknownOwner(expr);
 			ResolvedAccess resolvedUnknown = resolveUnknownMember(interprocedural, state, owner);
 			result = result.lub(interprocedural.getAnalysis().smallStepSemantics(resolvedUnknown.state(),
@@ -164,60 +135,6 @@ public class AttributeAccess extends UnaryExpression {
 		HeapDereference container = new HeapDereference(Untyped.INSTANCE, receiver, getLocation());
 		AccessChild access = new AccessChild(Untyped.INSTANCE, container, field, getLocation());
 		return interprocedural.getAnalysis().smallStepSemantics(state, access, this);
-	}
-
-	/**
-	 * Library-method fallback for receivers with no resolved runtime type.
-	 * <p>
-	 * Walks a whitelist of library classes (fastapi, flask) and checks whether
-	 * {@code <libClass>.<target>} is registered as a PyFunctionType. If so,
-	 * returns a GlobalVariable whose static type is that PyFunctionType, which
-	 * lets the outer FunctionApply dispatch to the library pluggable.
-	 * <p>
-	 * Heuristic: this trades precision (any method matching the target name on
-	 * any whitelisted class will dispatch) for recall (endpoints that would
-	 * otherwise be invisible due to lost type info now appear). Whitelisted
-	 * classes are the ones whose method vocabulary overlaps with the typical
-	 * "router"/"app" idiom.
-	 */
-	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ResolvedAccess tryLibraryMethodFallback(
-			InterproceduralAnalysis<A, D> interprocedural,
-			AnalysisState<A> state)
-			throws SemanticException {
-		// Only applied for the subset of method names that are commonly used
-		// as library instance methods in the network-analysis domain.
-		switch (target) {
-		case "include_router":
-		case "get":
-		case "post":
-		case "put":
-		case "delete":
-		case "patch":
-		case "head":
-		case "options":
-		case "trace":
-		case "add_middleware":
-		case "middleware":
-		case "mount":
-		case "route":
-		case "add_api_route":
-		case "add_route":
-		case "exception_handler":
-			break;
-		default:
-			return null;
-		}
-		String[] candidates = { "fastapi.APIRouter", "fastapi.FastAPI", "flask.Flask", "flask.Blueprint" };
-		for (String cls : candidates) {
-			String qualified = cls + "." + target;
-			if (it.unive.pylisa.cfg.type.PyFunctionType.isRegistered(qualified)) {
-				it.unive.pylisa.cfg.type.PyFunctionType pft = it.unive.pylisa.cfg.type.PyFunctionType
-						.lookup(qualified);
-				GlobalVariable access = new GlobalVariable(pft, "$" + qualified, getLocation());
-				return new ResolvedAccess(state, access);
-			}
-		}
-		return null;
 	}
 
 	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ResolvedAccess resolveUnknownMember(
