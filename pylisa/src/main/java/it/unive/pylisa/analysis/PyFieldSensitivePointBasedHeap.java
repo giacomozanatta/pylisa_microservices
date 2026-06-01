@@ -65,6 +65,17 @@ import it.unive.lisa.symbolic.heap.AccessChild;
 public class PyFieldSensitivePointBasedHeap extends FieldSensitivePointBasedHeap {
 
 	private static final java.util.concurrent.atomic.AtomicInteger HITS = new java.util.concurrent.atomic.AtomicInteger();
+	// Diagnostic: count empty-rewrite cases NOT covered by the AccessChild
+	// fallback below, bucketed by expression class. Each unique class is
+	// logged on its first occurrence and every 500th occurrence; this
+	// surfaces which symbolic-expression families land in lisa-sdk's
+	// `SimpleAbstractDomain.smallStepSemantics` empty-rewrite → ⊥ path
+	// (the documented cascade source — see the class-level javadoc). On
+	// IBM/mcp-context-forge specifically, the AccessChild fallback alone
+	// is not enough to keep the state non-⊥ through Settings(BaseSettings)
+	// instantiation, so we need to learn what else is here.
+	private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger> UNCOVERED_HITS =
+			new java.util.concurrent.ConcurrentHashMap<>();
 
 	@Override
 	public ExpressionSet rewrite(
@@ -94,6 +105,20 @@ public class PyFieldSensitivePointBasedHeap extends FieldSensitivePointBasedHeap
 					name,
 					true,
 					expression.getCodeLocation()));
+		}
+		// Diagnostic-only: report empty rewrites for OTHER expression types,
+		// which still cascade to ⊥ via lisa-sdk's empty-rewrite path. No
+		// semantic effect — `result` is returned as-is — but the log
+		// surfaces the expression families we need to cover next.
+		if (result.isEmpty()) {
+			String cls = expression == null ? "(null)" : expression.getClass().getSimpleName();
+			java.util.concurrent.atomic.AtomicInteger ctr =
+					UNCOVERED_HITS.computeIfAbsent(cls, k -> new java.util.concurrent.atomic.AtomicInteger());
+			int n = ctr.incrementAndGet();
+			if (n == 1 || n % 500 == 0)
+				org.apache.logging.log4j.LogManager.getLogger(PyFieldSensitivePointBasedHeap.class).info(
+						"[PYHEAP-UNCOVERED] class={} hits={} expr={} pp={}",
+						cls, n, expression, pp.getLocation());
 		}
 		return result;
 	}
