@@ -69,6 +69,24 @@ public class UnknownAttributeSymbolRef extends Expression {
 		AnalysisState<A> assigned = state.bottom();
 		for (it.unive.lisa.symbolic.SymbolicExpression expression : unknownValue.getExecutionExpressions())
 			assigned = assigned.lub(analysis.assign(unknownValue, symbol, expression, this));
+		// Empty-fold soundness fallback. `unknownValue` IS the sound ⊤ widening
+		// produced by the PushAny on line 66. When the PushAny's execution-
+		// expression set is empty under the current heap/type configuration —
+		// e.g. for Pydantic-Field-registered attributes whose name pylisa's
+		// static class model never saw — the fold above leaves `assigned`
+		// at the ⊥ seed. Returning smallStepSemantics(⊥, …) below then
+		// poisons the entire downstream analysis with ⊥, even though the
+		// concrete program clearly reaches this point. Fall back to assigning
+		// `symbol` from PushAny directly so that the next read of `symbol`
+		// sees ⊤ (sound) instead of ⊥ (unsound). Discovered while triaging
+		// IBM/mcp-context-forge: its Settings(BaseSettings) declares 427
+		// Pydantic-Field() attributes, main.py reads ~158 of them, and the
+		// first miss bottomed the state for every downstream
+		// app.include_router(...).
+		if (assigned.isBottom())
+			assigned = analysis.assign(state, symbol,
+					new PushAny(UnknownAttributeType.lookup(ownerName + "." + memberName), getLocation()),
+					this);
 		return analysis.smallStepSemantics(assigned, symbol, this);
 	}
 
