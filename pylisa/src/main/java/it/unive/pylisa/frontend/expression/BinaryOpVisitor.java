@@ -4,7 +4,7 @@ import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.literal.Int32Literal;
-import it.unive.lisa.program.cfg.statement.logic.Not;
+import it.unive.pylisa.cfg.expression.PyNot;
 import it.unive.lisa.program.cfg.statement.numeric.Division;
 import it.unive.lisa.program.cfg.statement.numeric.Subtraction;
 import it.unive.pylisa.UnsupportedStatementException;
@@ -97,7 +97,7 @@ public final class BinaryOpVisitor {
 	public Expression visitNot_test(
 			Not_testContext pctx) {
 		if (pctx.NOT() != null)
-			return new Not(ctx.currentCFG(), support.getLocation(pctx),
+			return new PyNot(ctx.currentCFG(), support.getLocation(pctx),
 					visitNot_test(pctx.not_test()));
 		return visitComparison(pctx.comparison());
 	}
@@ -154,7 +154,7 @@ public final class BinaryOpVisitor {
 			boolean negate,
 			SourceCodeLocation loc,
 			Expression inner) {
-		return negate ? new Not(ctx.currentCFG(), loc, inner) : inner;
+		return negate ? new PyNot(ctx.currentCFG(), loc, inner) : inner;
 	}
 
 	public Expression visitExpr(
