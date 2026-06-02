@@ -30,9 +30,9 @@ public class LambdaConstant extends Constant {
 	}
 
 	@Override
-	public int hashCode() {
+	protected int computeHashCode() {
 		final int prime = 31;
-		int result = super.hashCode();
+		int result = super.computeHashCode();
 		result = prime * result + ((arguments == null) ? 0 : arguments.hashCode());
 		return result;
 	}

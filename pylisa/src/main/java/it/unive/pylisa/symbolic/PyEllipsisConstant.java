@@ -14,8 +14,8 @@ public class PyEllipsisConstant extends Constant {
 	}
 
 	@Override
-	public int hashCode() {
-		return super.hashCode() ^ getClass().getName().hashCode();
+	protected int computeHashCode() {
+		return super.computeHashCode() ^ getClass().getName().hashCode();
 	}
 
 	@Override
