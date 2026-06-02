@@ -145,6 +145,24 @@ public final class PyFrontend implements LiSAFrontend {
 		return this;
 	}
 
+	/**
+	 * Marks the given fully-qualified module names as excluded from parsing
+	 * and analysis. Imports referencing them resolve to
+	 * {@code UnknownModuleUnit} stubs; calls into them return top under the
+	 * existing unknown-module semantics. Useful for taming analyzer-hostile
+	 * leaves whose caller fan-in dominates fixpoint cost without
+	 * contributing to the property being analyzed (e.g. routing).
+	 *
+	 * @param excluded the dotted module names to skip; may be {@code null}
+	 *                     or empty
+	 * @return this frontend, for chaining
+	 */
+	public PyFrontend setExcludedModules(
+			java.util.Set<String> excluded) {
+		this.ctx.importManager().setExcludedModules(excluded);
+		return this;
+	}
+
 	public String getFilePath() {
 		return filePath;
 	}

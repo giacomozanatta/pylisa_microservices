@@ -39,6 +39,12 @@ public class PythonModuleImportManager {
 	private final Map<Path, ModuleUnit> fileToUnit = new HashMap<>();
 	private final Set<String> resolvedModules = new HashSet<>();
 	private final Set<String> unknownModules = new HashSet<>();
+	// Modules listed via --excluded on the CLI. Any importModule(name) call
+	// for a name in this set short-circuits to createUnknownModule and never
+	// parses the body. Use this to neutralise analyzer-hostile leaves such
+	// as logging facilities whose fan-in dominates fixpoint cost without
+	// contributing to the network/routing graph.
+	private Set<String> excludedModules = new HashSet<>();
 	private CFG init;
 	private final Path baseDir;
 	// Models Python's sys.path root. When baseDir is itself inside a package
@@ -97,10 +103,45 @@ public class PythonModuleImportManager {
 		this.projectLoader = loader;
 	}
 
+	/**
+	 * Registers the set of fully-qualified module names that must NOT be
+	 * loaded by the frontend. Subsequent calls to {@link #importModule(String)}
+	 * for any name in this set return an {@link UnknownModuleUnit} stub,
+	 * just as if the module could not be resolved on disk or in any library
+	 * specification. The contents of the file are never parsed and no
+	 * project loader is invoked.
+	 * <p>
+	 * This is intended for taming analyzer-hostile leaves (most often:
+	 * logging facilities) whose massive caller fan-in dominates fixpoint
+	 * cost without contributing to the network/routing graph. Wired via
+	 * the {@code --excluded} CLI flag in {@code lisa-network}'s
+	 * {@code Main}.
+	 *
+	 * @param excluded the dotted module names to skip; may be {@code null}
+	 *                     or empty
+	 */
+	public void setExcludedModules(
+			Set<String> excluded) {
+		this.excludedModules = (excluded != null) ? new HashSet<>(excluded) : new HashSet<>();
+	}
+
 	public ModuleUnit importModule(
 			String moduleName) {
 		if (loadedModules.containsKey(moduleName))
 			return loadedModules.get(moduleName);
+
+		// --excluded short-circuit: skip parsing entirely and register the
+		// module as opaque. Calls into it return top by the existing
+		// unknown-module semantics. We log at INFO so an operator can
+		// confirm the exclusion took effect.
+		if (excludedModules.contains(moduleName)) {
+			log.info("[PyLiSA] Excluded module {} — treating as unknown (no parse)", moduleName);
+			ModuleUnit unit = createUnknownModule(moduleName);
+			PyModuleType.registerUnknown(moduleName, unit);
+			loadedModules.put(moduleName, unit);
+			registerUnknownAncestors(moduleName);
+			return unit;
+		}
 
 		ModuleUnit unit = null;
 
