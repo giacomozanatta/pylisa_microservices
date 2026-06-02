@@ -152,6 +152,21 @@ public class ObjectRegister extends FunctionalLattice<ObjectRegister, String, St
 					Call.CallType.STATIC,
 					compilationUnit.getName(),
 					"$init");
+			// Link the synthetic call to the ImportModule statement that
+			// triggered it. Without this, the call has no parent and
+			// AnalyzedCFG.getAnalysisStateBefore(moduleInit) reaches
+			// the predecessorsOf branch (line 171 there) — but the
+			// synthetic call is not in init.getCFG()'s NodeList, so
+			// NodeList.predecessorsOf throws
+			// IllegalArgumentException("... is not in the graph").
+			// That crash hit ContextBasedAnalysis.buildRecursion on
+			// IBM/mcp-context-forge after the fixpoint converged,
+			// aborting the entire run with zero artifacts even though
+			// the analyzed state was complete. With the parent set,
+			// getAnalysisStateBefore takes the "Expression with parent"
+			// branch and falls back through getEvaluationPredecessor →
+			// last-chance entry-state → bottom — a sound default.
+			moduleInit.setParentStatement(init);
 			// Save the state that already contains the registration so we can
 			// restore it if $init returns bottom. Without this guard the
 			// registration is overwritten by the bottom state, causing the
