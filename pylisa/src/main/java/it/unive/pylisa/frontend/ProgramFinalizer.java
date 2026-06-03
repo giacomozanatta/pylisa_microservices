@@ -115,8 +115,17 @@ public final class ProgramFinalizer {
 				"builtins", (ModuleUnit) PyModuleType.lookup("builtins").getUnit());
 		runCFG.addNode(importBuiltins, true);
 
+		// Read the entry-file's compilation-unit name off the parser
+		// context's currentModule rather than hardcoding "__main__".
+		// PyFrontend optionally substitutes "__main__" with a dotted
+		// module name (e.g. "mcpgateway.main") to match real Python
+		// import-cache semantics under uvicorn-style deployments; this
+		// synthetic import must use the same name or the PyModuleType
+		// lookup below misses.
+		ModuleUnit entryModule = (ModuleUnit) ctx.currentModule();
+		String entryName = entryModule != null ? entryModule.getName() : "__main__";
 		ImportModule importMain = new ImportModule(runCFG, LISA_LOC,
-				"__main__", (ModuleUnit) PyModuleType.lookup("__main__").getUnit());
+				entryName, (ModuleUnit) PyModuleType.lookup(entryName).getUnit());
 		runCFG.addNode(importMain);
 		runCFG.addEdge(new SequentialEdge(importBuiltins, importMain));
 

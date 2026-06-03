@@ -125,6 +125,38 @@ public class PythonModuleImportManager {
 		this.excludedModules = (excluded != null) ? new HashSet<>(excluded) : new HashSet<>();
 	}
 
+	/**
+	 * Seeds the {@code fileToUnit} cache so that a later
+	 * {@link #importModule(String)} call whose resolution points at
+	 * {@code entryFile} returns the existing {@code entryUnit} instead of
+	 * parsing the same file under a second compilation-unit identity.
+	 * <p>
+	 * Without this seeding, an entry file like {@code mcpgateway/main.py}
+	 * — held in {@link PyFrontend} under the name {@code "__main__"} —
+	 * gets re-parsed as {@code "mcpgateway.main"} the first time another
+	 * module imports it by qualified name, producing two
+	 * {@link ModuleUnit}s, two abstract {@code $init} runs, and two
+	 * independent FastAPI heap allocations whose route registrations both
+	 * fire. By seeding here, the qualified-name import deduplicates to the
+	 * existing entry-point unit through the same code path that already
+	 * unifies project-name aliases (e.g. {@code "config"} vs
+	 * {@code "dispatch.config"} both pointing at {@code dispatch/config.py}).
+	 *
+	 * @param entryFile the absolute, canonical path of the entry-point
+	 *                      source file
+	 * @param entryUnit the {@link ModuleUnit} the frontend already created
+	 *                      for the entry file (typically named
+	 *                      {@code "__main__"})
+	 */
+	public void registerEntryFile(
+			Path entryFile,
+			ModuleUnit entryUnit) {
+		if (entryFile == null || entryUnit == null)
+			return;
+		Path canonical = entryFile.toAbsolutePath().normalize();
+		fileToUnit.putIfAbsent(canonical, entryUnit);
+	}
+
 	public ModuleUnit importModule(
 			String moduleName) {
 		if (loadedModules.containsKey(moduleName))

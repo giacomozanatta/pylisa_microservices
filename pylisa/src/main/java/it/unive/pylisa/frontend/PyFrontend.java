@@ -106,6 +106,38 @@ public final class PyFrontend implements LiSAFrontend {
 			List<Integer> cellOrder,
 			String sourceRoot,
 			boolean strict) {
+		this(filePath, notebook, cellOrder, sourceRoot, strict, null);
+	}
+
+	/**
+	 * Master constructor. Accepts an optional {@code entryModuleName}
+	 * substituting the default {@code "__main__"} identity of the entry
+	 * file. The entry {@link ModuleUnit} is created with that name and
+	 * registered in {@link PyModuleType} under that name, so a later
+	 * import of the same dotted module (e.g. another file doing
+	 * {@code import mcpgateway.main}) resolves directly to the existing
+	 * unit instead of producing a second compilation-unit identity.
+	 * <p>
+	 * When {@code entryModuleName} is {@code null}, the legacy behaviour
+	 * is preserved (entry module is {@code "__main__"}). The entry file's
+	 * absolute path is then seeded into the import manager's path→unit
+	 * cache as a fallback so that an in-tree qualified-name import still
+	 * deduplicates to the same unit; this mirrors how real Python module
+	 * caching ({@code sys.modules}) prevents double execution of the
+	 * served file under uvicorn-style deployments.
+	 *
+	 * @param entryModuleName the dotted module name to assign the entry
+	 *                            file (e.g. {@code "mcpgateway.main"}),
+	 *                            or {@code null} for the default
+	 *                            {@code "__main__"}
+	 */
+	public PyFrontend(
+			String filePath,
+			boolean notebook,
+			List<Integer> cellOrder,
+			String sourceRoot,
+			boolean strict,
+			String entryModuleName) {
 		this.filePath = filePath;
 		this.notebook = notebook;
 		this.cellOrder = cellOrder;
@@ -118,7 +150,10 @@ public final class PyFrontend implements LiSAFrontend {
 
 		Program program = new Program(new PythonFeatures(), new PythonTypeSystem());
 		this.ctx.program(program);
-		ModuleUnit mainModule = new ModuleUnit(new SourceCodeLocation(filePath, 0, 0), program, "__main__");
+		String mainName = (entryModuleName != null && !entryModuleName.isBlank())
+				? entryModuleName
+				: "__main__";
+		ModuleUnit mainModule = new ModuleUnit(new SourceCodeLocation(filePath, 0, 0), program, mainName);
 		this.ctx.currentModule(mainModule);
 		this.ctx.currentUnit(mainModule);
 		this.init = makeInit(program);
@@ -128,7 +163,28 @@ public final class PyFrontend implements LiSAFrontend {
 				: (filePath != null) ? Path.of(filePath).getParent() : Path.of(".");
 		this.ctx.importManager(new PythonModuleImportManager(program, init, baseDir));
 		program.addUnit(mainModule);
-		PyModuleType.register("__main__", mainModule);
+		PyModuleType.register(mainName, mainModule);
+		// When the caller supplied an explicit entryModuleName (e.g.
+		// "mcpgateway.main"), seed the import-manager's path → unit cache
+		// with the entry file so that a later qualified-name import (from
+		// another module doing `from mcpgateway.main import …`) resolves
+		// to the existing entry unit instead of re-parsing it under a
+		// second compilation-unit identity. This matches the real-Python
+		// uvicorn deployment, where `mcpgateway/main.py` is loaded once
+		// as `mcpgateway.main` and any subsequent `import mcpgateway.main`
+		// returns the cached object via {@code sys.modules}.
+		// <p>
+		// Without an explicit entryModuleName we leave the bug visible on
+		// purpose: at runtime, `python mcpgateway/main.py` and a
+		// concurrent `import mcpgateway.main` from elsewhere ARE two
+		// distinct Python modules (sys.modules keys by name, not by
+		// file), and pylisa's pre-existing behaviour matches that
+		// semantics. Opting into the uvicorn-served model is the user's
+		// signal via --entry-module.
+		if (entryModuleName != null && !entryModuleName.isBlank() && filePath != null) {
+			this.ctx.importManager().registerEntryFile(
+					Path.of(filePath), mainModule);
+		}
 
 		this.support = new ParserSupport(ctx);
 		this.expr = new ExpressionVisitor(ctx, support);
@@ -136,7 +192,7 @@ public final class PyFrontend implements LiSAFrontend {
 		this.def = new DefinitionVisitor(ctx, support);
 		this.ctx.wireVisitors(expr, stmt, def);
 		this.moduleLoader = new ModuleLoaderCallback(ctx, support, stmt);
-		LOG.debug("PyFrontend wired for {}", filePath);
+		LOG.debug("PyFrontend wired for {} (entry module: {})", filePath, mainName);
 	}
 
 	public PyFrontend setContinueOnUnsupportedStatement(
