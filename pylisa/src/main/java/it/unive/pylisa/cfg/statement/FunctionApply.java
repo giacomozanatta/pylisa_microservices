@@ -302,6 +302,15 @@ public class FunctionApply extends NaryExpression {
 									Arrays.copyOfRange(getSubExpressions(), 1, getSubExpressions().length));
 						}
 						if (c != null) {
+							// Link the synthetic call to its emitting
+							// FunctionApply so that AnalyzedCFG.getAnalysisStateBefore
+							// can take the "Expression with parent" branch
+							// instead of NodeList.predecessorsOf (which would
+							// throw because the call was never addNode'd to
+							// the containing CFG). Same mechanism as
+							// ObjectRegister.initialize uses for its synthetic
+							// $init UnresolvedCall.
+							c.setParentStatement(this);
 							AnalysisState<A> callResult = c.forwardSemantics(state, interprocedural, expressions);
 							if (callResult.isBottom()) {
 								result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
