@@ -66,7 +66,8 @@ public class Publish extends RosNative {
 		Expressions build = new Expressions(callSite());
 		return state.forEachCombination(List.of(arguments[SELF], arguments[MSG]), (current, values) -> {
 			ModelState<A, D> type = current.read(values.get(0), "msg_type");
-			return current.forEach(type.values(), (typed, msgType) -> {
+			return EntityModels.requireAlive(current, values.get(0),
+					(alive, publisher) -> alive.forEach(type.values(), (typed, msgType) -> {
 				Set<Type> classes = typed.runtimeTypes(msgType);
 				Set<Type> messages = typed.runtimeTypes(values.get(1));
 				ModelState<A, D> result = typed.unreachable();
@@ -75,7 +76,7 @@ public class Publish extends RosNative {
 				if (!certainlyAccepted(classes, messages))
 					result = result.lub(typed.raise(PyExceptionType.TYPE_ERROR));
 				return result;
-			});
+			}));
 		});
 	}
 

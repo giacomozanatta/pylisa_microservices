@@ -205,7 +205,7 @@ library rclpy.publisher:
         instance method get_subscription_count: it.unive.pylisa.libraries.rclpy.RosUnknownResult
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Publisher*
-        instance method destroy: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy: it.unive.pylisa.libraries.rclpy.DestroySelf
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Publisher*
         instance method assert_liveliness: it.unive.pylisa.libraries.rclpy.RosUnknownResult
@@ -230,7 +230,7 @@ library rclpy.subscription:
             param qos_profile type it.unive.lisa.type.Untyped::INSTANCE
             param raw type it.unive.lisa.type.Untyped::INSTANCE
             param event_callbacks type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy: it.unive.pylisa.libraries.rclpy.DestroySelf
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Subscription*
 
@@ -245,19 +245,19 @@ library rclpy.timer:
             param timer_period_ns type it.unive.lisa.type.Untyped::INSTANCE
             param clock type it.unive.lisa.type.Untyped::INSTANCE
             param &context type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method destroy: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy: it.unive.pylisa.libraries.rclpy.DestroySelf
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Timer*
         instance method is_ready: it.unive.pylisa.libraries.rclpy.RosUnknownResult
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Timer*
-        instance method is_canceled: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method is_canceled: it.unive.pylisa.libraries.rclpy.IsCanceled
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Timer*
-        instance method cancel: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method cancel: it.unive.pylisa.libraries.rclpy.CancelTimer
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Timer*
-        instance method reset: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method reset: it.unive.pylisa.libraries.rclpy.ResetTimer
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Timer*
         instance method time_since_last_call: it.unive.pylisa.libraries.rclpy.RosUnknownResult
@@ -315,7 +315,7 @@ library rclpy.client:
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Client*
             param timeout_sec type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method destroy: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy: it.unive.pylisa.libraries.rclpy.DestroySelf
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Client*
 
@@ -336,7 +336,7 @@ library rclpy.service:
             param self libtype Service*
             param response type it.unive.lisa.type.Untyped::INSTANCE
             param header type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy: it.unive.pylisa.libraries.rclpy.DestroySelf
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Service*
 
@@ -352,7 +352,7 @@ library rclpy.guard_condition:
         instance method trigger: it.unive.pylisa.libraries.rclpy.RosUnknownResult
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype GuardCondition*
-        instance method destroy: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy: it.unive.pylisa.libraries.rclpy.DestroySelf
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype GuardCondition*
 
@@ -631,27 +631,27 @@ library rclpy.node:
             param self libtype Node*
             param frequency type it.unive.lisa.type.Untyped::INSTANCE
             param clock type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method destroy_publisher: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy_publisher: it.unive.pylisa.libraries.rclpy.DestroyEntity
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param publisher type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy_subscription: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy_subscription: it.unive.pylisa.libraries.rclpy.DestroyEntity
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param subscription type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy_client: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy_client: it.unive.pylisa.libraries.rclpy.DestroyEntity
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param client type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy_service: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy_service: it.unive.pylisa.libraries.rclpy.DestroyEntity
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param service type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy_timer: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy_timer: it.unive.pylisa.libraries.rclpy.DestroyEntity
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param timer type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy_guard_condition: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy_guard_condition: it.unive.pylisa.libraries.rclpy.DestroyEntity
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param guard type it.unive.lisa.type.Untyped::INSTANCE
@@ -659,7 +659,7 @@ library rclpy.node:
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param rate type it.unive.lisa.type.Untyped::INSTANCE
-        instance method destroy_node: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method destroy_node: it.unive.pylisa.libraries.rclpy.DestroyNode
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
         instance method get_publisher_names_and_types_by_node: it.unive.pylisa.libraries.rclpy.RosUnknownResult

@@ -4,7 +4,10 @@ import it.unive.lisa.analysis.AbstractDomain;
 import it.unive.lisa.analysis.AbstractLattice;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.program.cfg.CodeLocation;
+import it.unive.lisa.program.SyntheticLocation;
+import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.lisa.symbolic.value.Constant;
 import it.unive.lisa.symbolic.value.PushAny;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyClassType;
@@ -30,7 +33,16 @@ final class EntityModels {
 	 */
 	static final String CANCELED = "$canceled";
 
+	/**
+	 * The field of an entity, or of a node, that tells whether it was
+	 * destroyed.
+	 */
+	static final String DESTROYED = "$destroyed";
+
 	private static final Logger LOG = LogManager.getLogger(EntityModels.class);
+
+	private static final SymbolicExpression FALSE = new Constant(BoolType.INSTANCE, false,
+			SyntheticLocation.INSTANCE);
 
 	private EntityModels() {
 	}
@@ -68,6 +80,7 @@ final class EntityModels {
 			throws SemanticException {
 		return create(state, RosTypes.PUBLISHER, site, (created, publisher) -> created
 				.write(publisher, NODE, node)
+				.write(publisher, DESTROYED, FALSE)
 				.write(publisher, "msg_type", msgType)
 				.write(publisher, "topic", topic)
 				.write(publisher, "topic_name", topicName)
@@ -111,6 +124,7 @@ final class EntityModels {
 			throws SemanticException {
 		return create(state, RosTypes.SUBSCRIPTION, site, (created, subscription) -> created
 				.write(subscription, NODE, node)
+				.write(subscription, DESTROYED, FALSE)
 				.write(subscription, "msg_type", msgType)
 				.write(subscription, "topic", topic)
 				.write(subscription, "topic_name", topicName)
@@ -148,6 +162,7 @@ final class EntityModels {
 			throws SemanticException {
 		return create(state, RosTypes.TIMER, site, (created, timer) -> created
 				.write(timer, NODE, node)
+				.write(timer, DESTROYED, FALSE)
 				.write(timer, "timer_period_ns", periodNs)
 				.write(timer, "callback", callback)
 				.write(timer, CANCELED, build.bool(false))
@@ -183,6 +198,7 @@ final class EntityModels {
 			throws SemanticException {
 		return create(state, RosTypes.CLIENT, site, (created, client) -> created
 				.write(client, NODE, node)
+				.write(client, DESTROYED, FALSE)
 				.write(client, "srv_type", srvType)
 				.write(client, "srv_name", srvName)
 				.write(client, "service_name", serviceName)
@@ -213,6 +229,7 @@ final class EntityModels {
 			throws SemanticException {
 		return create(state, RosTypes.GUARD_CONDITION, site, (created, guard) -> created
 				.write(guard, NODE, node)
+				.write(guard, DESTROYED, FALSE)
 				.write(guard, "callback", callback)
 				.returning(guard));
 	}
@@ -250,12 +267,44 @@ final class EntityModels {
 			throws SemanticException {
 		return create(state, RosTypes.SERVICE, site, (created, service) -> created
 				.write(service, NODE, node)
+				.write(service, DESTROYED, FALSE)
 				.write(service, "srv_type", srvType)
 				.write(service, "srv_name", srvName)
 				.write(service, "service_name", serviceName)
 				.write(service, "callback", callback)
 				.write(service, "qos_profile", qosProfile)
 				.returning(service));
+	}
+
+	/**
+	 * Continues where an entity and its node are not destroyed, and raises
+	 * {@code InvalidHandle} where one of them may be: rclpy entities use their
+	 * C handle, which destroying the entity or its node frees.
+	 *
+	 * @param <A>    the kind of abstract state
+	 * @param <D>    the kind of abstract domain
+	 * @param state  the state
+	 * @param entity a reference to the entity
+	 * @param alive  what to do where the entity may be used
+	 *
+	 * @return the join of the outcomes
+	 *
+	 * @throws SemanticException if the fields cannot be read
+	 */
+	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> requireAlive(
+			ModelState<A, D> state,
+			SymbolicExpression entity,
+			ModelState.Step<A, D, SymbolicExpression> alive)
+			throws SemanticException {
+		ModelState<A, D> destroyed = state.read(entity, DESTROYED);
+		return state.forEach(destroyed.values(), (current, flag) -> current.branch(flag,
+				(gone, c) -> gone.raise(RclpyExceptions.INVALID_HANDLE),
+				(present, c) -> {
+					ModelState<A, D> node = present.read(entity, NODE);
+					return present.forEach(node.values(),
+							(owned, owner) -> NodeModel.requireAlive(owned, owner,
+									(usable, n) -> alive.apply(usable, entity)));
+				}));
 	}
 
 	/**

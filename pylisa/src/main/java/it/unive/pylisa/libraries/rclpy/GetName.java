@@ -8,7 +8,7 @@ import it.unive.lisa.program.cfg.statement.Expression;
  * The model of {@code rclpy.node.Node.get_name()}, which returns the name of a node as
  * computed when the node was created.
  */
-public class GetName extends RosFieldAccessor {
+public class GetName extends NodeAccessor {
 
 	/**
 	 * Builds the model of one call.

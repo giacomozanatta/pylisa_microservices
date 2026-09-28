@@ -63,7 +63,8 @@ class TopicStateTest {
 	void anEntityCreatedThroughANodeHeldInAFieldBelongsToThatNode(
 			RosConfig config)
 			throws Exception {
-		Obj app = RosTestHelper.analyse("ros-tests/state/entities/node_in_field.py", config).after("@pub").object("self");
+		Obj app = RosTestHelper.analyse("ros-tests/state/entities/node_in_field.py", config).after("@pub")
+				.object("self");
 		assertEquals(app.ref("node"), app.ref("pub").ref("$node"));
 	}
 
@@ -104,7 +105,8 @@ class TopicStateTest {
 	void aSubscriptionStoresALambdaCallback(
 			RosConfig config)
 			throws Exception {
-		Obj subscription = RosTestHelper.analyse("ros-tests/state/entities/subscription_lambda.py", config).after("@sub")
+		Obj subscription = RosTestHelper.analyse("ros-tests/state/entities/subscription_lambda.py", config)
+				.after("@sub")
 				.object("sub");
 		Set<String> callback = subscription.fieldTypes("callback");
 		assertEquals(1, callback.size(), callback.toString());
@@ -190,7 +192,8 @@ class TopicStateTest {
 		assertTrue(qosErrors.contains("builtins.TypeError"), qosErrors.toString());
 		// an unknown period may be not a number, infinite or out of range
 		Set<String> timerErrors = helper.after("@timer").errors();
-		assertTrue(timerErrors.containsAll(Set.of("builtins.ValueError", "builtins.OverflowError")), timerErrors.toString());
+		assertTrue(timerErrors.containsAll(Set.of("builtins.ValueError", "builtins.OverflowError")),
+				timerErrors.toString());
 		// an unknown substitution may be rejected
 		Set<String> bracesErrors = helper.after("@braces").errors();
 		assertTrue(bracesErrors.contains("rclpy.exceptions.InvalidTopicNameException"), bracesErrors.toString());

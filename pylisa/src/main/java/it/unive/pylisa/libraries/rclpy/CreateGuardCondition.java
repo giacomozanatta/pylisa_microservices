@@ -57,7 +57,7 @@ public class CreateGuardCondition extends RosNative {
 			ExpressionSet[] arguments)
 			throws SemanticException {
 		return state.forEachCombination(List.of(arguments[SELF], arguments[CALLBACK]),
-				(current, values) -> EntityModels.guardCondition(current, callSite(), values.get(0),
-						values.get(1)));
+				(current, values) -> NodeModel.requireAlive(current, values.get(0),
+						(alive, node) -> EntityModels.guardCondition(alive, callSite(), node, values.get(1))));
 	}
 }

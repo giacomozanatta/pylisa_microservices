@@ -77,7 +77,7 @@ public class CreateTimer extends RosNative {
 					SymbolicExpression representable = build.and(
 							build.lessOrEqual(build.real(-TWO_TO_THE_63), nanoseconds),
 							build.lessThan(nanoseconds, build.real(TWO_TO_THE_63)));
-					return current.branch(representable,
+					return NodeModel.requireAlive(current, values.get(0), (alive, n) -> alive.branch(representable,
 							(converted, c) -> converted.branch(build.lessThan(build.real(-1), nanoseconds),
 									(accepted, c1) -> accepted.branch(build.lessThan(nanoseconds, build.integer(0)),
 											// int() truncates toward zero
@@ -89,7 +89,7 @@ public class CreateTimer extends RosNative {
 									(negative, c1) -> negative.raise(RclpyExceptions.RCL_ERROR)),
 							(failed, c) -> failed.raise(PyExceptionType.VALUE_ERROR)
 									.lub(failed.raise(PyExceptionType.OVERFLOW_ERROR))
-									.lub(failed.raise(PyExceptionType.TYPE_ERROR)));
+									.lub(failed.raise(PyExceptionType.TYPE_ERROR))));
 				});
 	}
 }

@@ -75,11 +75,11 @@ public class CreatePublisher extends RosNative {
 					SymbolicExpression self = values.get(1);
 					SymbolicExpression topic = values.get(3);
 					SymbolicExpression qos = values.get(4);
-					return QosModels.depth(declared, build, qos,
+					return NodeModel.requireAlive(declared, self, (alive, n) -> QosModels.depth(alive, build, qos,
 							(checked, depth) -> RosNames.resolve(checked, build, self, topic,
 									RclpyExceptions.INVALID_TOPIC_NAME,
 									(resolved, topicName) -> EntityModels.publisher(resolved, build, callSite(),
-											self, values.get(2), topic, topicName, qos, depth)));
+											self, values.get(2), topic, topicName, qos, depth))));
 				});
 	}
 }

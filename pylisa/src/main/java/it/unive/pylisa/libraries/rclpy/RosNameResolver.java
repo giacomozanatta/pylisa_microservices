@@ -49,7 +49,8 @@ public abstract class RosNameResolver extends RosNative {
 		// the C function behind these methods reports every failure, invalid
 		// names included, as RCLError
 		return state.forEachCombination(List.of(arguments[SELF], arguments[NAME]),
-				(current, values) -> RosNames.resolve(current, build, values.get(0), values.get(1),
-						RclpyExceptions.RCL_ERROR, ModelState::returning));
+				(current, values) -> NodeModel.requireAlive(current, values.get(0),
+						(alive, node) -> RosNames.resolve(alive, build, node, values.get(1), RclpyExceptions.RCL_ERROR,
+								ModelState::returning)));
 	}
 }

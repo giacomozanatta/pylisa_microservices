@@ -191,7 +191,8 @@ final class NodeModel {
 					.write(self, NAME, name)
 					.write(self, NAMESPACE, namespace)
 					.write(self, FULLY_QUALIFIED, fullName)
-					.write(self, CONTEXT, context);
+					.write(self, CONTEXT, context)
+					.write(self, EntityModels.DESTROYED, build.bool(false));
 			return createBuiltInEntities(named, build, site, self, name, startParameterServices)
 					.returning(build.none());
 		}
@@ -223,6 +224,32 @@ final class NodeModel {
 		return state.forEach(ok.values(), (current, flag) -> current.branch(flag,
 				(usable, condition) -> initialized.apply(usable, context),
 				(unusable, condition) -> unusable.raise(RclpyExceptions.NOT_INITIALIZED)));
+	}
+
+	/**
+	 * Continues where a node is not destroyed, and raises
+	 * {@code InvalidHandle} where it may be: the methods of a node that use
+	 * its C handle fail once {@code destroy_node()} freed it.
+	 *
+	 * @param <A>   the kind of abstract state
+	 * @param <D>   the kind of abstract domain
+	 * @param state the state
+	 * @param node  a reference to the node
+	 * @param alive what to do where the node may be used
+	 *
+	 * @return the join of the outcomes
+	 *
+	 * @throws SemanticException if the field cannot be read
+	 */
+	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> requireAlive(
+			ModelState<A, D> state,
+			SymbolicExpression node,
+			ModelState.Step<A, D, SymbolicExpression> alive)
+			throws SemanticException {
+		ModelState<A, D> destroyed = state.read(node, EntityModels.DESTROYED);
+		return state.forEach(destroyed.values(), (current, flag) -> current.branch(flag,
+				(gone, c) -> gone.raise(RclpyExceptions.INVALID_HANDLE),
+				(present, c) -> alive.apply(present, node)));
 	}
 
 	/**

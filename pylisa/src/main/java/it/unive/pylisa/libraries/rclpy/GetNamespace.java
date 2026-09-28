@@ -8,7 +8,7 @@ import it.unive.lisa.program.cfg.statement.Expression;
  * The model of {@code rclpy.node.Node.get_namespace()}, which returns the namespace of a node as
  * computed when the node was created.
  */
-public class GetNamespace extends RosFieldAccessor {
+public class GetNamespace extends NodeAccessor {
 
 	/**
 	 * Builds the model of one call.

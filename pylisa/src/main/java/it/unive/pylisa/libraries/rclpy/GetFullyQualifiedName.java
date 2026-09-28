@@ -8,7 +8,7 @@ import it.unive.lisa.program.cfg.statement.Expression;
  * The model of {@code rclpy.node.Node.get_fully_qualified_name()}, which returns the fully qualified name of a node as
  * computed when the node was created.
  */
-public class GetFullyQualifiedName extends RosFieldAccessor {
+public class GetFullyQualifiedName extends NodeAccessor {
 
 	/**
 	 * Builds the model of one call.

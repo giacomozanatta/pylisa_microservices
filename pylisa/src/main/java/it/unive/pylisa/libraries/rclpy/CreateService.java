@@ -71,10 +71,13 @@ public class CreateService extends RosNative {
 				(current, values) -> {
 					SymbolicExpression self = values.get(0);
 					SymbolicExpression srvName = values.get(2);
-					return QosModels.serviceProfile(current, build, values.get(4),
-							(profiled, qos) -> RosNames.resolve(profiled, build, self, srvName, RclpyExceptions.INVALID_SERVICE_NAME,
-									(resolved, serviceName) -> EntityModels.service(resolved, build, callSite(),
-											self, values.get(1), srvName, serviceName, values.get(3), qos)));
+					return NodeModel.requireAlive(current, self,
+							(alive, n) -> QosModels.serviceProfile(alive, build, values.get(4),
+									(profiled, qos) -> RosNames.resolve(profiled, build, self, srvName,
+											RclpyExceptions.INVALID_SERVICE_NAME,
+											(resolved, serviceName) -> EntityModels.service(resolved, build,
+													callSite(), self, values.get(1), srvName, serviceName,
+													values.get(3), qos))));
 				});
 	}
 }

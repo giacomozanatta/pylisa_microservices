@@ -292,6 +292,10 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 		ExpressionSet values = value instanceof AccessChild
 				? analysis.rewrite(state, value, point)
 				: new ExpressionSet(value);
+		if (located.getExecutionExpressions().isEmpty())
+			// the reference points to no object the analysis tracks, whose
+			// fields are therefore not tracked either
+			return this;
 		AnalysisState<A> result = state.bottomExecution();
 		for (SymbolicExpression target : located.getExecutionExpressions())
 			for (SymbolicExpression stored : values)
@@ -444,11 +448,53 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			SymbolicExpression reference)
 			throws SemanticException {
 		Set<String> names = new HashSet<>();
+		for (HeapLocation location : locations(reference))
+			names.add(location.getName());
+		return names;
+	}
+
+	/**
+	 * Decides whether two references point to the same object. They do when
+	 * each points to one and the same abstract object that stands for a
+	 * single concrete object; they do not when the objects they may point to
+	 * are disjoint; otherwise nothing is decided.
+	 *
+	 * @param first  the first reference
+	 * @param second the second reference
+	 *
+	 * @return whether they point to the same object
+	 *
+	 * @throws SemanticException if the references cannot be resolved
+	 */
+	public Satisfiability sameObject(
+			SymbolicExpression first,
+			SymbolicExpression second)
+			throws SemanticException {
+		Set<HeapLocation> left = locations(first);
+		Set<HeapLocation> right = locations(second);
+		if (left.isEmpty() || right.isEmpty())
+			return Satisfiability.UNKNOWN;
+		Set<String> leftNames = new HashSet<>();
+		left.forEach(location -> leftNames.add(location.getName()));
+		Set<String> rightNames = new HashSet<>();
+		right.forEach(location -> rightNames.add(location.getName()));
+		if (leftNames.stream().noneMatch(rightNames::contains))
+			return Satisfiability.NOT_SATISFIED;
+		if (left.size() == 1 && right.size() == 1 && leftNames.equals(rightNames)
+				&& !left.iterator().next().isWeak() && !right.iterator().next().isWeak())
+			return Satisfiability.SATISFIED;
+		return Satisfiability.UNKNOWN;
+	}
+
+	private Set<HeapLocation> locations(
+			SymbolicExpression reference)
+			throws SemanticException {
+		Set<HeapLocation> locations = new HashSet<>();
 		HeapDereference target = new HeapDereference(Untyped.INSTANCE, reference, call.getLocation());
 		for (SymbolicExpression location : analysis.rewrite(state, target, point))
 			if (location instanceof HeapLocation)
-				names.add(((HeapLocation) location).getName());
-		return names;
+				locations.add((HeapLocation) location);
+		return locations;
 	}
 
 	/**
