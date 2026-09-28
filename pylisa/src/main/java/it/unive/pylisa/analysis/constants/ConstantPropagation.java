@@ -12,7 +12,6 @@ import it.unive.lisa.program.type.Int32Type;
 import it.unive.lisa.program.type.Int64Type;
 import it.unive.lisa.program.type.Int8Type;
 import it.unive.lisa.program.type.StringType;
-import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.*;
 import it.unive.lisa.symbolic.value.operator.AdditionOperator;
 import it.unive.lisa.symbolic.value.operator.ArithmeticOperator;
@@ -191,7 +190,7 @@ public class ConstantPropagation
 
 	@Override
 	public boolean canProcess(
-			SymbolicExpression expression,
+			ValueExpression expression,
 			ProgramPoint pp,
 			SemanticOracle oracle) {
 		if (expression instanceof PushInv)
@@ -324,15 +323,6 @@ public class ConstantPropagation
 		if (operator instanceof DictPut)
 			return dictPut(left, middle, right, pp);
 		return top();
-	}
-
-	@Override
-	public ConstantPropagation evalVariadicExpression(
-			VariadicExpression expression,
-			ConstantPropagation[] values,
-			ProgramPoint pp,
-			SemanticOracle oracle) {
-		return BaseNonRelationalValueDomain.super.evalVariadicExpression(expression, values, pp, oracle);
 	}
 
 	@SuppressWarnings("unchecked")

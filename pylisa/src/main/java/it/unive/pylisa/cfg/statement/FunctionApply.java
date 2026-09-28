@@ -15,7 +15,6 @@ import it.unive.lisa.program.cfg.statement.call.Call;
 import it.unive.lisa.program.cfg.statement.call.NativeCall;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.PushAny;
-import it.unive.lisa.symbolic.value.VariadicExpression;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyClassType;
@@ -219,148 +218,104 @@ public class FunctionApply extends NaryExpression {
 				runtimeTypes = filtered;
 			}
 			boolean handledIdentifier = false;
-			// Fix 3d: PassThroughLazyExpression — return the argument
-			// unchanged.
-			// Used by decorators such as @cache(...) that wrap without changing
-			// the
-			// HTTP interface, so the outer @router.get(...) still receives the
-			// handler.
-			if (identifier instanceof PassThroughLazyExpression) {
-				anyTypeFound = true;
-				if (params.length > 1) {
-					for (SymbolicExpression callback : params[1]) {
-						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state, callback, this));
+			for (Type t : runtimeTypes) {
+				if (t instanceof PyClassType pct) {
+					handledIdentifier = true;
+					anyTypeFound = true;
+					Expression[] classParams;
+					if (hasReceiver && getSubExpressions().length > 1) {
+						// getSubExpressions() = [identifier, receiver,
+						// arg1, arg2, ...]
+						// ClassInstantiation should receive: [identifier,
+						// arg1, arg2, ...]
+						int len = getSubExpressions().length;
+						classParams = new Expression[len - 1];
+						classParams[0] = getSubExpressions()[0];
+						System.arraycopy(getSubExpressions(), 2, classParams, 1, len - 2);
+					} else {
+						classParams = getSubExpressions();
 					}
+					ClassInstantiation ci = new ClassInstantiation(this.getCFG(), getLocation(), pct,
+							classParams);
+					result = result.lub(ci.forwardSemantics(state, interprocedural, expressions));
 				}
-				continue;
-			}
-			if (identifier instanceof LazyEvaluatedVariadicExpression lazyEval) {
-				anyTypeFound = true;
-				SymbolicExpression e = lazyEval.getExpression();
-				if (e instanceof VariadicExpression ve) {
-					VariadicExpression.Builder builder = new VariadicExpression.Builder()
-							.operator(ve.getOperator())
-							.staticType(ve.getStaticType())
-							.location(ve.getCodeLocation());
-					SymbolicExpression[] oldOperands = ve.getOperands();
-					ve.getVarargsIndex().forEach((
-							name,
-							index) -> {
-						builder.varargsOperand(name, oldOperands[index]);
-					});
-					int j = 1;
-					for (Expression le : lazyEval.additionalExpressions) {
-						builder.varargsOperand(le.toString(), params[j].elements.stream().findFirst().get()); // todo:
-																												// fix
-																												// that!
+				if (t instanceof PyFunctionType pft) {
+					handledIdentifier = true;
+					anyTypeFound = true;
+					CodeMember cm = pft.getUnit().getFunction();
+					// here, maybe I need to add the main
+					Call c = null;
+					if (cm instanceof NativeCFG cfg) {
+						c = new NativeCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
+								List.of(cfg),
+								Arrays.copyOfRange(getSubExpressions(), 1, getSubExpressions().length));
+						org.apache.logging.log4j.LogManager.getLogger(FunctionApply.class).debug(
+								"NativeCall built: this(FA)id={} subexpr[1]={} id={}, NativeCFG={}",
+								System.identityHashCode(this),
+								getSubExpressions().length > 1 ? getSubExpressions()[1] : "n/a",
+								getSubExpressions().length > 1 ? System.identityHashCode(getSubExpressions()[1])
+										: -1,
+								cfg.getDescriptor().getName());
+					} else if (cm instanceof CFG cfg) {
+						c = new CFGCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
+								List.of(cfg),
+								Arrays.copyOfRange(getSubExpressions(), 1, getSubExpressions().length));
 					}
-					VariadicExpression expr = builder.build();
-					return interprocedural.getAnalysis().smallStepSemantics(state, expr, this);
-				}
-			} else {
-				for (Type t : runtimeTypes) {
-					if (t instanceof PyClassType pct) {
-						handledIdentifier = true;
-						anyTypeFound = true;
-						Expression[] classParams;
-						if (hasReceiver && getSubExpressions().length > 1) {
-							// getSubExpressions() = [identifier, receiver,
-							// arg1, arg2, ...]
-							// ClassInstantiation should receive: [identifier,
-							// arg1, arg2, ...]
-							int len = getSubExpressions().length;
-							classParams = new Expression[len - 1];
-							classParams[0] = getSubExpressions()[0];
-							System.arraycopy(getSubExpressions(), 2, classParams, 1, len - 2);
-						} else {
-							classParams = getSubExpressions();
-						}
-						ClassInstantiation ci = new ClassInstantiation(this.getCFG(), getLocation(), pct,
-								classParams);
-						result = result.lub(ci.forwardSemantics(state, interprocedural, expressions));
-					}
-					if (t instanceof PyFunctionType pft) {
-						handledIdentifier = true;
-						anyTypeFound = true;
-						CodeMember cm = pft.getUnit().getFunction();
-						// here, maybe I need to add the main
-						Call c = null;
-						if (cm instanceof NativeCFG cfg) {
-							c = new NativeCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
-									List.of(cfg),
-									Arrays.copyOfRange(getSubExpressions(), 1, getSubExpressions().length));
-							org.apache.logging.log4j.LogManager.getLogger(FunctionApply.class).debug(
-									"NativeCall built: this(FA)id={} subexpr[1]={} id={}, NativeCFG={}",
-									System.identityHashCode(this),
-									getSubExpressions().length > 1 ? getSubExpressions()[1] : "n/a",
-									getSubExpressions().length > 1 ? System.identityHashCode(getSubExpressions()[1])
-											: -1,
-									cfg.getDescriptor().getName());
-						} else if (cm instanceof CFG cfg) {
-							c = new CFGCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
-									List.of(cfg),
-									Arrays.copyOfRange(getSubExpressions(), 1, getSubExpressions().length));
-						}
-						if (c != null) {
-							// Link the synthetic call to its emitting
-							// FunctionApply so that AnalyzedCFG.getAnalysisStateBefore
-							// can take the "Expression with parent" branch
-							// instead of NodeList.predecessorsOf (which would
-							// throw because the call was never addNode'd to
-							// the containing CFG). Same mechanism as
-							// ObjectRegister.initialize uses for its synthetic
-							// $init UnresolvedCall.
-							c.setParentStatement(this);
-							AnalysisState<A> callResult = c.forwardSemantics(state, interprocedural, expressions);
-							if (callResult.isBottom()) {
-								result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-										new PushAny(Untyped.INSTANCE, getLocation()), this));
-							} else {
-								result = result.lub(callResult);
-							}
-						} else {
-							// If we know this is a function value but cannot
-							// resolve a
-							// concrete callable body, stay conservative without
-							// collapsing to bottom.
+					if (c != null) {
+						// Link the synthetic call to its emitting
+						// FunctionApply so that AnalyzedCFG.getAnalysisStateBefore
+						// can take the "Expression with parent" branch
+						// instead of NodeList.predecessorsOf (which would
+						// throw because the call was never addNode'd to
+						// the containing CFG). Same mechanism as
+						// ObjectRegister.initialize uses for its synthetic
+						// $init UnresolvedCall.
+						c.setParentStatement(this);
+						AnalysisState<A> callResult = c.forwardSemantics(state, interprocedural, expressions);
+						if (callResult.isBottom()) {
 							result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
 									new PushAny(Untyped.INSTANCE, getLocation()), this));
+						} else {
+							result = result.lub(callResult);
 						}
-					}
-					// AttributeAccess access = new
-					// AttributeAccess(this.getCFG(),
-					// SyntheticLocation.INSTANCE, getSubExpressions()[0],
-					// "__new__");
-
-					// FunctionApply apply = new FunctionApply(getCFG(),
-					// SyntheticLocation.INSTANCE, access, new Expression[]{});
-					// result = result.lub(apply.forwardSemantics(state,
-					// interprocedural, expressions));
-				}
-				if (!handledIdentifier) {
-					if (decoratorApplication && params.length > 1) {
-						// Generic transparent-decorator fallback: the call
-						// target is unresolved (e.g. an external decorator
-						// with no library spec) but this call was emitted by
-						// the decorator visitor, so the conservative,
-						// useful default is to pass the decorated argument
-						// through unchanged. This preserves the inner
-						// PyFunctionType so an outer route decorator can
-						// still resolve the handler — equivalent to what
-						// PassThroughLazyExpression does for opted-in
-						// decorators, but without requiring a per-decorator
-						// library spec.
-						for (SymbolicExpression callback : params[1])
-							result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-									callback, this));
 					} else {
+						// If we know this is a function value but cannot
+						// resolve a
+						// concrete callable body, stay conservative without
+						// collapsing to bottom.
 						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
 								new PushAny(Untyped.INSTANCE, getLocation()), this));
 					}
-					anyTypeFound = true;
 				}
-				// result = result.lub(analysis.smallStepSemantics(state,
-				// identifier, this));
+				// AttributeAccess access = new
+				// AttributeAccess(this.getCFG(),
+				// SyntheticLocation.INSTANCE, getSubExpressions()[0],
+				// "__new__");
+
+				// FunctionApply apply = new FunctionApply(getCFG(),
+				// SyntheticLocation.INSTANCE, access, new Expression[]{});
+				// result = result.lub(apply.forwardSemantics(state,
+				// interprocedural, expressions));
+			}
+			if (!handledIdentifier) {
+				if (decoratorApplication && params.length > 1) {
+					// Generic transparent-decorator fallback: the call
+					// target is unresolved (e.g. an external decorator
+					// with no library spec) but this call was emitted by
+					// the decorator visitor, so the conservative,
+					// useful default is to pass the decorated argument
+					// through unchanged. This preserves the inner
+					// PyFunctionType so an outer route decorator can
+					// still resolve the handler, without requiring a
+					// per-decorator library specification.
+					for (SymbolicExpression callback : params[1])
+						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+								callback, this));
+				} else {
+					result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
+							new PushAny(Untyped.INSTANCE, getLocation()), this));
+				}
+				anyTypeFound = true;
 			}
 		}
 		if (!anyTypeFound) {
@@ -374,30 +329,6 @@ public class FunctionApply extends NaryExpression {
 			return interprocedural.getAnalysis().smallStepSemantics(state,
 					new PushAny(Untyped.INSTANCE, getLocation()), this);
 		}
-		// result.getExecution().getComputedExpressions().forEach())
-
-		/*
-		 * if (right instanceof Constant) { Constant constant = (Constant)
-		 * right; if (left.getStaticType() instanceof FunctionLiteral l) { CFG
-		 * leftCFG = l.getValue(); CFGCall call = new CFGCall(this.getCFG(),
-		 * getLocation(), Call.CallType.UNKNOWN, (String) null,
-		 * leftCFG.getDescriptor().getName(), List.of(leftCFG),
-		 * this.getRight()); } if (left instanceof
-		 * LazyEvaluatedVariadicExpression lazyEval) { SymbolicExpression e =
-		 * lazyEval.getExpression(); if (e instanceof VariadicExpression ve) {
-		 * VariadicExpression.Builder builder = new VariadicExpression.Builder()
-		 * .operator(ve.getOperator()) .staticType(ve.getStaticType())
-		 * .location(ve.getCodeLocation()); SymbolicExpression[] oldOperands =
-		 * ve.getOperands(); /*for (SymbolicExpression op : oldOperands) {
-		 * builder.operand(op); } ve.getVarargsIndex().forEach((name, index) ->
-		 * { builder.varargsOperand(name, oldOperands[index]); }); for
-		 * (Expression le : lazyEval.additionalExpressions) {
-		 * builder.varargsOperand(le.toString(), right); } VariadicExpression
-		 * expr = builder.build(); return
-		 * interprocedural.getAnalysis().smallStepSemantics(state, expr, this);
-		 * } } }
-		 */
-
 		return result;
 	}
 }

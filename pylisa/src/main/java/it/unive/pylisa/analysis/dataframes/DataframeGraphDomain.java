@@ -173,7 +173,7 @@ public class DataframeGraphDomain /*
 				used.forEach(nodes::remove);
 			pointers.lattice.forEach(nodes::remove);
 			nodes.forEach(map::remove);
-			this.operations = new CollectingMapLattice<>(operations.lattice, map);
+			this.operations = new CollectingMapLattice<>(operations.lattice, CollectingMapLattice.toTrieMap(map));
 		} else
 			this.operations = operations;
 
@@ -508,7 +508,7 @@ public class DataframeGraphDomain /*
 			if (entry.getValue().intersects(stack))
 				map.put(entry.getKey(), entry.getValue().replace(stack, ids));
 
-		return new CollectingMapLattice<>(pointers.lattice, map);
+		return new CollectingMapLattice<>(pointers.lattice, CollectingMapLattice.toTrieMap(map));
 	}
 
 	private static RangeBound getRangeBound(
@@ -729,7 +729,7 @@ public class DataframeGraphDomain /*
 
 		NodeId id = new NodeId(concatNode);
 		CollectingMapLattice<NodeId,
-				DataframeOperation> ops = new CollectingMapLattice<>(arg.operations.lattice, operations);
+				DataframeOperation> ops = new CollectingMapLattice<>(arg.operations.lattice, CollectingMapLattice.toTrieMap(operations));
 		// no shift necessary: this is a new dataframe creation
 		return new DataframeGraphDomain(
 				arg.constants,
@@ -778,7 +778,7 @@ public class DataframeGraphDomain /*
 
 		SetLattice<NodeId> idsLattice = new SetLattice<>(ids.keySet(), false);
 		CollectingMapLattice<NodeId,
-				DataframeOperation> ops = new CollectingMapLattice<>(arg.operations.lattice, map);
+				DataframeOperation> ops = new CollectingMapLattice<>(arg.operations.lattice, CollectingMapLattice.toTrieMap(map));
 		for (Entry<NodeId, DataframeOperation> entry : ids.entrySet())
 			ops = ops.putState(entry.getKey(), new SetLattice<>(entry.getValue()));
 		CollectingMapLattice<Identifier, NodeId> pointers = shift(arg.pointers, arg.pointers.lattice, idsLattice);
@@ -825,7 +825,7 @@ public class DataframeGraphDomain /*
 
 		SetLattice<NodeId> idsLattice = new SetLattice<>(ids.keySet(), false);
 		CollectingMapLattice<NodeId,
-				DataframeOperation> ops = new CollectingMapLattice<>(arg.operations.lattice, map);
+				DataframeOperation> ops = new CollectingMapLattice<>(arg.operations.lattice, CollectingMapLattice.toTrieMap(map));
 		for (Entry<NodeId, DataframeOperation> entry : ids.entrySet())
 			ops = ops.putState(entry.getKey(), new SetLattice<>(entry.getValue()));
 		CollectingMapLattice<Identifier, NodeId> pointers = shift(arg.pointers, arg.pointers.lattice, idsLattice);
@@ -857,7 +857,7 @@ public class DataframeGraphDomain /*
 				arg.constants,
 				arg.graph,
 				arg.pointers.setStack(new SetLattice<>(ids, false)),
-				new CollectingMapLattice<>(arg.operations.lattice, operations));
+				new CollectingMapLattice<>(arg.operations.lattice, CollectingMapLattice.toTrieMap(operations)));
 	}
 
 	private static DataframeGraphDomain doReadDataframe(
@@ -1004,7 +1004,7 @@ public class DataframeGraphDomain /*
 
 		SetLattice<NodeId> idsLattice = new SetLattice<>(ids.keySet(), false);
 		CollectingMapLattice<NodeId,
-				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, operations);
+				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, CollectingMapLattice.toTrieMap(operations));
 		for (Entry<NodeId, DataframeOperation> entry : ids.entrySet())
 			ops = ops.putState(entry.getKey(), new SetLattice<>(entry.getValue()));
 		CollectingMapLattice<Identifier, NodeId> pointers = shift(right.pointers, left.pointers.lattice, idsLattice);
@@ -1046,7 +1046,7 @@ public class DataframeGraphDomain /*
 
 		SetLattice<NodeId> idsLattice = new SetLattice<>(ids.keySet(), false);
 		CollectingMapLattice<NodeId,
-				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, operations);
+				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, CollectingMapLattice.toTrieMap(operations));
 		for (Entry<NodeId, DataframeOperation> entry : ids.entrySet())
 			ops = ops.putState(entry.getKey(), new SetLattice<>(entry.getValue()));
 		CollectingMapLattice<Identifier, NodeId> pointers = shift(right.pointers, left.pointers.lattice, idsLattice);
@@ -1091,7 +1091,7 @@ public class DataframeGraphDomain /*
 
 		SetLattice<NodeId> idsLattice = new SetLattice<>(ids.keySet(), false);
 		CollectingMapLattice<NodeId,
-				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, operations);
+				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, CollectingMapLattice.toTrieMap(operations));
 		for (Entry<NodeId, DataframeOperation> entry : ids.entrySet())
 			ops = ops.putState(entry.getKey(), new SetLattice<>(entry.getValue()));
 		CollectingMapLattice<Identifier, NodeId> pointers = shift(right.pointers, left.pointers.lattice, idsLattice);
@@ -1135,7 +1135,7 @@ public class DataframeGraphDomain /*
 		NodeId id = new NodeId(concatNode);
 		SetLattice<NodeId> ids = new SetLattice<>(id);
 		CollectingMapLattice<NodeId,
-				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, operations);
+				DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, CollectingMapLattice.toTrieMap(operations));
 		CollectingMapLattice<Identifier, NodeId> pointers = shift(right.pointers, left.pointers.lattice, ids);
 		return new DataframeGraphDomain(
 				right.constants,
@@ -1225,7 +1225,7 @@ public class DataframeGraphDomain /*
 
 		SetLattice<NodeId> idsLattice = new SetLattice<>(ids.keySet(), false);
 		CollectingMapLattice<Identifier, NodeId> pointers = shift(right.pointers, left.pointers.lattice, idsLattice);
-		CollectingMapLattice<NodeId, DataframeOperation> ops = new CollectingMapLattice<>(left.operations.lattice, map);
+		CollectingMapLattice<NodeId, DataframeOperation> ops = new CollectingMapLattice<>(left.operations.lattice, CollectingMapLattice.toTrieMap(map));
 		for (Entry<NodeId, DataframeOperation> entry : ids.entrySet())
 			ops = ops.putState(entry.getKey(), new SetLattice<>(entry.getValue()));
 		return new DataframeGraphDomain(
@@ -1536,7 +1536,7 @@ public class DataframeGraphDomain /*
 
 			SetLattice<NodeId> idsLattice = new SetLattice<>(ids.keySet(), false);
 			CollectingMapLattice<NodeId,
-					DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, operations);
+					DataframeOperation> ops = new CollectingMapLattice<>(right.operations.lattice, CollectingMapLattice.toTrieMap(operations));
 			for (Entry<NodeId, DataframeOperation> entry : ids.entrySet())
 				ops = ops.putState(entry.getKey(), new SetLattice<>(entry.getValue()));
 			CollectingMapLattice<Identifier,

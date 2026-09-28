@@ -18,7 +18,7 @@ import it.unive.pylisa.cfg.statement.ModuleLiteral;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
 import it.unive.pylisa.program.FunctionUnit;
 import it.unive.pylisa.program.ModuleUnit;
-import java.util.Map;
+import it.unive.lisa.util.datastructures.trie.PatriciaTrieMap;
 
 /**
  * A {@link FunctionalLattice} mapping module names (Strings) to
@@ -43,7 +43,7 @@ public class ObjectRegister extends FunctionalLattice<ObjectRegister, String, St
 
 	private ObjectRegister(
 			StringConstant lattice,
-			Map<String, StringConstant> function) {
+			PatriciaTrieMap<String, StringConstant> function) {
 		super(lattice, function);
 	}
 
@@ -66,7 +66,7 @@ public class ObjectRegister extends FunctionalLattice<ObjectRegister, String, St
 			String name,
 			StringConstant stateIdentifier) {
 		ObjectRegister result = super.putState(name, stateIdentifier);
-		int sz = result.getMap() == null ? 0 : result.getMap().size();
+		int sz = result.function == null ? 0 : result.function.size();
 		int callN = PUT_CALL_COUNT.incrementAndGet();
 		if (callN % 2000 == 0 || (sz > 0 && sz % 1000 == 0 && sz != LAST_SIZE.getAndSet(sz)))
 			LOG.info("[OR-PUT] putModule call#{} mapSize={} key={} value={}", callN, sz, name, stateIdentifier.value);
@@ -74,7 +74,7 @@ public class ObjectRegister extends FunctionalLattice<ObjectRegister, String, St
 	}
 
 	public java.util.Map<String, StringConstant> getMap() {
-		return function;
+		return function == null ? null : function.toHashMap();
 	}
 
 	private static final java.util.concurrent.atomic.AtomicInteger PUT_CALL_COUNT = new java.util.concurrent.atomic.AtomicInteger(
@@ -95,7 +95,7 @@ public class ObjectRegister extends FunctionalLattice<ObjectRegister, String, St
 	@Override
 	public ObjectRegister mk(
 			StringConstant lattice,
-			Map<String, StringConstant> function) {
+			PatriciaTrieMap<String, StringConstant> function) {
 		return new ObjectRegister(lattice, function);
 	}
 
