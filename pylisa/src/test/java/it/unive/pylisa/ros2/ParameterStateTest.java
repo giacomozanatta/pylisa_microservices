@@ -22,6 +22,21 @@ class ParameterStateTest {
 
 	private static final String NODES = "ros-tests/state/us2_param_node.py";
 
+	private static final String SEMANTICS = "ros-tests/state/us2_param_semantics.py";
+
+	/**
+	 * Analyses the program exercising the rules of rclpy's parameter methods,
+	 * with a known value of another type than its default for {@code typed},
+	 * and other nodes allowed to change parameters.
+	 */
+	private static RosTestHelper semantics(
+			RosConfig config)
+			throws Exception {
+		ParameterOverrides.use(ParameterOverrides.of(List.of(new ParameterOverrides.Known("/n", "typed", "fast")),
+				false, true));
+		return RosTestHelper.analyse(SEMANTICS, config);
+	}
+
 	@AfterEach
 	void restoreDefaultOverrides() {
 		ParameterOverrides.use(ParameterOverrides.UNKNOWN);
@@ -66,29 +81,64 @@ class ParameterStateTest {
 
 	@ParameterizedTest
 	@EnumSource(RosConfig.class)
-	void theSoundnessReviewCounterexamplesHold(
+	void everyNodeDeclaresUseSimTime(
 			RosConfig config)
 			throws Exception {
-		ParameterOverrides.use(ParameterOverrides.of(List.of(new ParameterOverrides.Known("/n", "typed", "fast")),
-				false, true));
-		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/us2_param_review.py", config);
-		// every node declares use_sim_time, so declaring it again fails
-		assertTrue(helper.after("@sim").errors().contains("rclpy.exceptions.ParameterAlreadyDeclaredException"));
-		// two parameters declared at the same site: 'b' is not ruled out
-		// after looking 'a' up
-		assertTrue(!helper.after("@summary").value("has_b").equals(Val.exact(false)),
-				helper.after("@summary").value("has_b").toString());
-		// a parameter declared with only its name has no value, and
-		// get_parameter_or yields the alternative
-		helper.assertAllProved();
-		// a registered callback may reject a declaration
-		assertTrue(helper.after("@callback").errors().contains("rclpy.exceptions.InvalidParameterValueException"));
-		// a known value of another type makes a static declaration fail
-		assertTrue(helper.after("@typed").errors().contains("rclpy.exceptions.InvalidParameterTypeException"));
-		// values the program passes in cli_args may set the parameter
-		assertEquals(Val.top(), helper.after("@cli").value("p"));
-		// once spun, other nodes may have set the parameter
-		assertEquals(Val.top(), helper.after("@spun").value("r"));
+		Set<String> errors = semantics(config).after("@sim").errors();
+		assertTrue(errors.contains("rclpy.exceptions.ParameterAlreadyDeclaredException"), errors.toString());
+	}
+
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void parametersDeclaredAtTheSameSiteAreNotToldApart(
+			RosConfig config)
+			throws Exception {
+		// looking 'a' up must not rule 'b' out: both are one abstract object
+		Val hasB = semantics(config).after("@summary").value("has_b");
+		assertTrue(!hasB.equals(Val.exact(false)), hasB.toString());
+	}
+
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void aParameterDeclaredWithOnlyItsNameHasNoValue(
+			RosConfig config)
+			throws Exception {
+		// get_parameter_or yields the alternative for it
+		semantics(config).assertAllProved();
+	}
+
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void aKnownValueOfAnotherTypeMakesTheDeclarationFail(
+			RosConfig config)
+			throws Exception {
+		Set<String> errors = semantics(config).after("@typed").errors();
+		assertTrue(errors.contains("rclpy.exceptions.InvalidParameterTypeException"), errors.toString());
+	}
+
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void valuesPassedInCliArgsMaySetAParameter(
+			RosConfig config)
+			throws Exception {
+		assertEquals(Val.top(), semantics(config).after("@cli").value("p"));
+	}
+
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void aSetParametersCallbackMayRejectADeclaration(
+			RosConfig config)
+			throws Exception {
+		Set<String> errors = semantics(config).after("@callback").errors();
+		assertTrue(errors.contains("rclpy.exceptions.InvalidParameterValueException"), errors.toString());
+	}
+
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void otherNodesMayChangeTheParametersOfASpunNode(
+			RosConfig config)
+			throws Exception {
+		assertEquals(Val.top(), semantics(config).after("@spun").value("r"));
 	}
 
 	@ParameterizedTest
