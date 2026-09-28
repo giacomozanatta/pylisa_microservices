@@ -28,8 +28,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class PyAssigningStrategy implements ParameterAssigningStrategy {
+
+	private static final Logger LOG = LogManager.getLogger(PyAssigningStrategy.class);
 
 	/**
 	 * The singleton instance of this class.
@@ -99,6 +103,8 @@ public class PyAssigningStrategy implements ParameterAssigningStrategy {
 
 			// Keep analysis soundly conservative: parameter matching failures
 			// should not collapse execution to bottom.
+			LOG.warn("The arguments of {} at {} do not match the parameters of the callee: every parameter is unknown",
+					call, call.getLocation());
 			AnalysisState<A> prepared = callState;
 			for (Parameter formal : formals)
 				prepared = interprocedural.getAnalysis().assign(
@@ -160,12 +166,16 @@ public class PyAssigningStrategy implements ParameterAssigningStrategy {
 			throws SemanticException {
 		Set<String> namedPars = new HashSet<>();
 		int namedParOffset = getNamedParIndex(actuals);
-		if (namedParOffset >= 0)
+		if (namedParOffset < 0) {
+			// no keyword argument: every argument is positional
+			namedParOffset = actuals.length;
+		} else {
 			for (int i = namedParOffset; i < actuals.length; i++)
 				if (actuals[i] instanceof NamedParameterExpression)
 					namedPars.add(((NamedParameterExpression) actuals[i]).getParameterName());
 				else
 					namedParOffset = actuals.length;
+		}
 
 		int aPos = 0;
 		int fPos = 0;

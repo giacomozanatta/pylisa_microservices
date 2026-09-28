@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.HeapLocation;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * The analysis state right after one statement of the analysed program, joined
@@ -84,6 +86,22 @@ public final class Point {
 	public Val value(
 			String path) {
 		return reachable().valueOf(expression(path)).orElseGet(() -> fail(path + " has no value " + description));
+	}
+
+	/**
+	 * Yields the names of the runtime types a variable or an attribute may
+	 * have.
+	 *
+	 * @param path a variable name, optionally followed by attribute names
+	 *                 separated by dots
+	 *
+	 * @return the type names, sorted
+	 */
+	public Set<String> types(
+			String path) {
+		return reachable().typesOf(expression(path)).stream()
+				.map(Object::toString)
+				.collect(Collectors.toCollection(TreeSet::new));
 	}
 
 	/**

@@ -9,6 +9,7 @@ import it.unive.lisa.symbolic.value.HeapLocation;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -73,6 +74,22 @@ public final class Obj {
 			String name) {
 		return view.valueOf(StateView.field(reference, name))
 				.orElseGet(() -> fail("Field " + name + " of " + this + " has no value"));
+	}
+
+	/**
+	 * Yields the names of the runtime types the value of a field may have. For
+	 * a field holding a function, such as a registered callback, the type names
+	 * the function: its qualified name, such as {@code __main__.Listener@4:0.cb}.
+	 *
+	 * @param name the field name
+	 *
+	 * @return the type names, sorted
+	 */
+	public Set<String> fieldTypes(
+			String name) {
+		return view.typesOf(StateView.field(reference, name)).stream()
+				.map(Object::toString)
+				.collect(Collectors.toCollection(TreeSet::new));
 	}
 
 	/**

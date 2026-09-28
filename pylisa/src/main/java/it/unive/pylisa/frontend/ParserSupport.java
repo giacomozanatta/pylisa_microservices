@@ -16,6 +16,9 @@ import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.cfg.statement.VariableRef;
 import it.unive.lisa.program.cfg.statement.call.NamedParameterExpression;
 import it.unive.lisa.program.cfg.statement.literal.StringLiteral;
+import it.unive.lisa.program.type.StringType;
+import it.unive.lisa.type.Untyped;
+import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
 import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.DictorsetmakerContext;
 import it.unive.pylisa.cfg.PyCFG;
@@ -279,7 +282,32 @@ public final class ParserSupport {
 
 	// === literal / structural helpers ===
 
-	public StringLiteral strip(
+	/**
+	 * Translates a string literal token, prefix included. Formatted strings
+	 * ({@code f"..."}) and bytes literals ({@code b"..."}) are not evaluated
+	 * and translate to unknown values; raw and unicode prefixes are dropped and
+	 * the literal translates to its contents.
+	 *
+	 * @param location the location of the literal
+	 * @param token    the literal as written in the source
+	 *
+	 * @return the literal
+	 */
+	public Expression strip(
+			CodeLocation location,
+			String token) {
+		int quote = 0;
+		while (quote < token.length() && Character.isLetter(token.charAt(quote)))
+			quote++;
+		String prefix = token.substring(0, quote).toLowerCase();
+		if (prefix.contains("f"))
+			return new PyUnknownLiteral(ctx.currentCFG(), location, token, StringType.INSTANCE);
+		if (prefix.contains("b"))
+			return new PyUnknownLiteral(ctx.currentCFG(), location, token, Untyped.INSTANCE);
+		return stripQuotes(location, token.substring(quote));
+	}
+
+	private StringLiteral stripQuotes(
 			CodeLocation location,
 			String string) {
 		PyCFG cfg = ctx.currentCFG();
