@@ -103,10 +103,30 @@ public enum KnownGap {
 
 	/**
 	 * Some expressions are parsed incorrectly: the {@code %} operator may drop
-	 * the rest of the line, chains of arithmetic operators associate to the
-	 * right, and adjacent string literals keep only the first one.
+	 * the rest of the line, adjacent string literals keep only the first one,
+	 * and in a chained comparison such as {@code a < b < c} only the first
+	 * comparison is evaluated (the others are an unknown truth value, and
+	 * their further operands are not evaluated).
 	 */
-	PARSING_DEFECTS("some operator chains and adjacent string literals are parsed incorrectly");
+	PARSING_DEFECTS("the % operator, adjacent string literals and chained comparisons are parsed incompletely"),
+
+	/**
+	 * A library parameter whose default value is not a literal (such as
+	 * {@code qos_profile=qos_profile_services_default}) is declared with the
+	 * default {@code None}, so a call that passes {@code None} explicitly is
+	 * analysed as if it passed nothing.
+	 */
+	EXPLICIT_NONE_AS_DEFAULT("an explicit None for a library parameter with a non-literal default is taken as the default"),
+
+	/**
+	 * Numbers are plain values, not objects: arithmetic and comparisons on
+	 * them follow Python's rules for {@code int}, {@code bool} and
+	 * {@code float} but never dispatch to {@code __add__}, {@code __lt__} and
+	 * the other special methods, so subclasses of the numeric types are
+	 * treated as their base type. Integers that do not fit 64 bits are
+	 * unknown.
+	 */
+	NUMBERS_ARE_PLAIN_VALUES("numbers are plain values: no special-method dispatch, integers beyond 64 bits are unknown");
 
 	private final String description;
 

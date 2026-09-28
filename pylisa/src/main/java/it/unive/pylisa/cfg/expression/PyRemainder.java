@@ -8,6 +8,7 @@ import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.numeric.Remainder;
 import it.unive.lisa.program.type.StringType;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.pylisa.symbolic.operators.PythonArithmetic;
 import it.unive.lisa.symbolic.value.PushAny;
 import it.unive.lisa.type.Type;
 import java.util.Set;
@@ -40,7 +41,8 @@ public class PyRemainder extends Remainder {
 		rts = interprocedural.getAnalysis().getRuntimeTypesOf(state, right, this);
 		if (rts != null && !rts.isEmpty() && rts.stream().anyMatch(Predicate.not(Type::isStringType)))
 			// this might not be a string formatting
-			result = result.lub(super.fwdBinarySemantics(interprocedural, state, left, right, expressions));
+			result = result.lub(NumericOperands.apply(interprocedural, state, left, right,
+					PythonArithmetic.Rem.INSTANCE, this));
 		return result;
 	}
 }

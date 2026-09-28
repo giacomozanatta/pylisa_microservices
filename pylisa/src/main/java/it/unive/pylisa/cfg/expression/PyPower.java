@@ -38,7 +38,7 @@ public class PyPower extends BinaryExpression {
 			throws SemanticException {
 		Set<Type> tleft = interprocedural.getAnalysis().getRuntimeTypesOf(state, left, this);
 		Set<Type> tright = interprocedural.getAnalysis().getRuntimeTypesOf(state, right, this);
-		if (tleft.stream().anyMatch(Type::isNumericType) && tright.stream().anyMatch(Type::isNumericType)) {
+		if (tleft.stream().anyMatch(NumericOperands::isNumber) && tright.stream().anyMatch(NumericOperands::isNumber)) {
 			return interprocedural.getAnalysis().smallStepSemantics(
 					state,
 					new it.unive.lisa.symbolic.value.BinaryExpression(

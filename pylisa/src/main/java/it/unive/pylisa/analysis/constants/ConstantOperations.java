@@ -18,8 +18,8 @@ import java.util.regex.PatternSyntaxException;
 /**
  * The concrete semantics of the binary operators that {@link ConstantPropagation}
  * evaluates exactly when both operands are known constants: string
- * concatenation, suffix extraction, the string predicates, and Python's
- * {@code ==} / {@code !=}.
+ * concatenation, suffix extraction, the string predicates, Python's
+ * {@code ==} / {@code !=}, and the orderings of numbers.
  * <p>
  * Every method yields an empty result when the concrete outcome cannot be
  * determined from the operands (unsupported operand kinds, out-of-range
@@ -65,8 +65,8 @@ final class ConstantOperations {
 	 *
 	 * @param operator the operator
 	 *
-	 * @return {@code true} for the string predicates and the equality
-	 *             comparisons
+	 * @return {@code true} for the string predicates, the equality
+	 *             comparisons and the numeric orderings
 	 */
 	static boolean isPredicate(
 			BinaryOperator operator) {
@@ -76,7 +76,8 @@ final class ConstantOperations {
 				|| operator instanceof StringEquals
 				|| operator instanceof StringMatches
 				|| operator instanceof ComparisonEq
-				|| operator instanceof ComparisonNe;
+				|| operator instanceof ComparisonNe
+				|| PythonNumbers.isOrdering(operator);
 	}
 
 	/**
@@ -124,6 +125,8 @@ final class ConstantOperations {
 			return pythonEquals(left, right);
 		if (operator instanceof ComparisonNe)
 			return pythonEquals(left, right).map(equal -> !equal);
+		if (PythonNumbers.isOrdering(operator))
+			return PythonNumbers.compare(operator, left, right);
 
 		Object l = left.getValue();
 		Object r = right.getValue();
@@ -175,7 +178,7 @@ final class ConstantOperations {
 		case STRING:
 			return Optional.of(left.getValue().equals(right.getValue()));
 		case NUMBER:
-			return Optional.of(numericallyEqual(left.getValue(), right.getValue()));
+			return PythonNumbers.equal(left, right);
 		case NONE:
 			return Optional.of(true);
 		default:
@@ -195,14 +198,6 @@ final class ConstantOperations {
 		return Kind.OTHER;
 	}
 
-	private static boolean numericallyEqual(
-			Object left,
-			Object right) {
-		if (isIntegral(left) && isIntegral(right))
-			return asLong(left) == asLong(right);
-		return asDouble(left) == asDouble(right);
-	}
-
 	private static boolean isIntegral(
 			Object value) {
 		return value instanceof Boolean
@@ -210,19 +205,5 @@ final class ConstantOperations {
 				|| value instanceof Short
 				|| value instanceof Integer
 				|| value instanceof Long;
-	}
-
-	private static long asLong(
-			Object value) {
-		if (value instanceof Boolean)
-			return ((Boolean) value) ? 1L : 0L;
-		return ((Number) value).longValue();
-	}
-
-	private static double asDouble(
-			Object value) {
-		if (value instanceof Boolean)
-			return ((Boolean) value) ? 1d : 0d;
-		return ((Number) value).doubleValue();
 	}
 }

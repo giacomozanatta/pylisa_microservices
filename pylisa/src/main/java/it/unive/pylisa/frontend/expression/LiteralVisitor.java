@@ -2,7 +2,10 @@ package it.unive.pylisa.frontend.expression;
 
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.literal.FalseLiteral;
-import it.unive.lisa.program.cfg.statement.literal.Float32Literal;
+import it.unive.lisa.program.cfg.statement.literal.Float64Literal;
+import it.unive.lisa.program.cfg.statement.literal.Int64Literal;
+import it.unive.lisa.program.type.Int64Type;
+import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
 import it.unive.lisa.program.cfg.statement.literal.Int32Literal;
 import it.unive.lisa.program.cfg.statement.literal.TrueLiteral;
 import it.unive.pylisa.UnsupportedStatementException;
@@ -83,7 +86,11 @@ public final class LiteralVisitor {
 		return switch (parsed) {
 		case PythonNumericLiteral.IntegerLit i -> new Int32Literal(ctx.currentCFG(),
 				support.getLocation(pctx), i.value());
-		case PythonNumericLiteral.FloatLit f -> new Float32Literal(ctx.currentCFG(),
+		case PythonNumericLiteral.LongLit l -> new Int64Literal(ctx.currentCFG(),
+				support.getLocation(pctx), l.value());
+		case PythonNumericLiteral.BigIntegerLit b -> new PyUnknownLiteral(ctx.currentCFG(),
+				support.getLocation(pctx), pctx.NUMBER().getText(), Int64Type.INSTANCE);
+		case PythonNumericLiteral.FloatLit f -> new Float64Literal(ctx.currentCFG(),
 				support.getLocation(pctx), f.value());
 		case PythonNumericLiteral.ComplexLit c -> support.rejectUnsupported(pctx, "complex literal");
 		};

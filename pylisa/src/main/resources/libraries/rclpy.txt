@@ -296,7 +296,7 @@ library rclpy.client:
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Client*
             param request type it.unive.lisa.type.Untyped::INSTANCE
-        instance method call_async: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method call_async: it.unive.pylisa.libraries.rclpy.CallAsync
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Client*
             param request type it.unive.lisa.type.Untyped::INSTANCE
@@ -568,17 +568,17 @@ library rclpy.node:
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param waitable type it.unive.lisa.type.Untyped::INSTANCE
-        instance method resolve_topic_name: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method resolve_topic_name: it.unive.pylisa.libraries.rclpy.ResolveTopicName
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param topic type it.unive.lisa.type.Untyped::INSTANCE
             param &only_expand type it.unive.lisa.type.Untyped::INSTANCE default false
-        instance method resolve_service_name: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method resolve_service_name: it.unive.pylisa.libraries.rclpy.ResolveServiceName
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param service type it.unive.lisa.type.Untyped::INSTANCE
             param &only_expand type it.unive.lisa.type.Untyped::INSTANCE default false
-        instance method create_publisher: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method create_publisher: it.unive.pylisa.libraries.rclpy.CreatePublisher
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param msg_type type it.unive.lisa.type.Untyped::INSTANCE
@@ -588,7 +588,7 @@ library rclpy.node:
             param &event_callbacks type it.unive.lisa.type.Untyped::INSTANCE default none
             param &qos_overriding_options type it.unive.lisa.type.Untyped::INSTANCE default none
             param &publisher_class type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method create_subscription: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method create_subscription: it.unive.pylisa.libraries.rclpy.CreateSubscription
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param msg_type type it.unive.lisa.type.Untyped::INSTANCE
@@ -599,14 +599,14 @@ library rclpy.node:
             param &event_callbacks type it.unive.lisa.type.Untyped::INSTANCE default none
             param &qos_overriding_options type it.unive.lisa.type.Untyped::INSTANCE default none
             param &raw type it.unive.lisa.type.Untyped::INSTANCE default false
-        instance method create_client: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method create_client: it.unive.pylisa.libraries.rclpy.CreateClient
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param srv_type type it.unive.lisa.type.Untyped::INSTANCE
             param srv_name type it.unive.lisa.type.Untyped::INSTANCE
             param &qos_profile type it.unive.lisa.type.Untyped::INSTANCE default none
             param &callback_group type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method create_service: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method create_service: it.unive.pylisa.libraries.rclpy.CreateService
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param srv_type type it.unive.lisa.type.Untyped::INSTANCE
@@ -614,14 +614,14 @@ library rclpy.node:
             param callback type it.unive.lisa.type.Untyped::INSTANCE
             param &qos_profile type it.unive.lisa.type.Untyped::INSTANCE default none
             param &callback_group type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method create_timer: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method create_timer: it.unive.pylisa.libraries.rclpy.CreateTimer
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param timer_period_sec type it.unive.lisa.type.Untyped::INSTANCE
             param callback type it.unive.lisa.type.Untyped::INSTANCE
             param callback_group type it.unive.lisa.type.Untyped::INSTANCE default none
             param clock type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method create_guard_condition: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method create_guard_condition: it.unive.pylisa.libraries.rclpy.CreateGuardCondition
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param callback type it.unive.lisa.type.Untyped::INSTANCE

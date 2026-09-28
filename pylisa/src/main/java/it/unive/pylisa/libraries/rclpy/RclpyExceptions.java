@@ -63,6 +63,13 @@ public final class RclpyExceptions {
 	public static final PyExceptionType INVALID_HANDLE = PyExceptionType
 			.subclass("rclpy._rclpy_pybind11.InvalidHandle", PyExceptionType.EXCEPTION);
 
+	/**
+	 * Raised when the C layer of rclpy reports an error, such as a timer with
+	 * a negative period.
+	 */
+	public static final PyExceptionType RCL_ERROR = PyExceptionType
+			.subclass("rclpy._rclpy_pybind11.RCLError", PyExceptionType.RUNTIME_ERROR);
+
 	private RclpyExceptions() {
 	}
 }

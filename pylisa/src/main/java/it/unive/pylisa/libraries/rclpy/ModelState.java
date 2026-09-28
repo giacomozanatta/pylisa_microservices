@@ -26,6 +26,7 @@ import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyExceptionType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * One analysis state inside the model of a library call, together with the
@@ -279,9 +280,16 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			SymbolicExpression value)
 			throws SemanticException {
 		AnalysisState<A> located = analysis.smallStepSemantics(state, field(reference, name), point);
+		// a value read from a field (such as the receiver of
+		// self.client.call_async(...)) is first resolved to the location of
+		// that field, so that the heap copies what the location points to
+		ExpressionSet values = value instanceof AccessChild
+				? analysis.rewrite(state, value, point)
+				: new ExpressionSet(value);
 		AnalysisState<A> result = state.bottomExecution();
 		for (SymbolicExpression target : located.getExecutionExpressions())
-			result = result.lub(analysis.assign(located, target, value, point));
+			for (SymbolicExpression stored : values)
+				result = result.lub(analysis.assign(located, target, stored, point));
 		return with(result);
 	}
 
@@ -376,6 +384,21 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			SymbolicExpression condition)
 			throws SemanticException {
 		return analysis.satisfies(state, condition, point);
+	}
+
+	/**
+	 * Yields the types the value of an expression may have at run time.
+	 *
+	 * @param expression the expression
+	 *
+	 * @return the types; empty when nothing is known about them
+	 *
+	 * @throws SemanticException if the types cannot be computed
+	 */
+	public Set<Type> runtimeTypes(
+			SymbolicExpression expression)
+			throws SemanticException {
+		return analysis.getRuntimeTypesOf(state, expression, point);
 	}
 
 	/**

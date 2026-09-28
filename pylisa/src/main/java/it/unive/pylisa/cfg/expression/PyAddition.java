@@ -7,6 +7,7 @@ import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.numeric.Addition;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.pylisa.symbolic.operators.PythonArithmetic;
 import it.unive.lisa.symbolic.value.BinaryExpression;
 import it.unive.lisa.type.Type;
 import it.unive.pylisa.symbolic.operators.StringAdd;
@@ -62,6 +63,6 @@ public class PyAddition extends Addition {
 		// the first (right) tuple
 		// and the last n2 are all the elements of the second (right) tuple.
 		// Set and Dict does not support operand +
-		return super.fwdBinarySemantics(interprocedural, state, left, right, expressions);
+		return NumericOperands.apply(interprocedural, state, left, right, PythonArithmetic.Add.INSTANCE, this);
 	}
 }

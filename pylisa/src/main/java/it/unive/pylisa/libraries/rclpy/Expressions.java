@@ -2,20 +2,31 @@ package it.unive.pylisa.libraries.rclpy;
 
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.type.BoolType;
+import it.unive.lisa.program.type.Float64Type;
 import it.unive.lisa.program.type.Int32Type;
+import it.unive.lisa.program.type.Int64Type;
 import it.unive.lisa.program.type.StringType;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.BinaryExpression;
 import it.unive.lisa.symbolic.value.Constant;
+import it.unive.lisa.symbolic.value.PushAny;
+import it.unive.lisa.symbolic.value.UnaryExpression;
 import it.unive.lisa.symbolic.value.operator.binary.BinaryOperator;
 import it.unive.lisa.symbolic.value.operator.binary.ComparisonEq;
+import it.unive.lisa.symbolic.value.operator.binary.LogicalAnd;
 import it.unive.lisa.symbolic.value.operator.binary.LogicalOr;
+import it.unive.lisa.symbolic.value.operator.binary.NumericNonOverflowingMul;
 import it.unive.lisa.symbolic.value.operator.binary.StringConcat;
 import it.unive.lisa.symbolic.value.operator.binary.StringContains;
 import it.unive.lisa.symbolic.value.operator.binary.StringMatches;
 import it.unive.lisa.symbolic.value.operator.binary.StringStartsWith;
 import it.unive.lisa.symbolic.value.operator.binary.StringSubstringToEnd;
+import it.unive.lisa.symbolic.value.operator.unary.NumericFloor;
+import it.unive.lisa.type.Type;
+import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.symbolic.PyNoneConstant;
+import it.unive.pylisa.symbolic.operators.compare.PyComparisonLe;
+import it.unive.pylisa.symbolic.operators.compare.PyComparisonLt;
 
 /**
  * Builds the symbolic expressions that the rclpy models evaluate, all placed at
@@ -79,6 +90,94 @@ final class Expressions {
 	SymbolicExpression bool(
 			boolean value) {
 		return new Constant(BoolType.INSTANCE, value, location);
+	}
+
+	/**
+	 * Yields a float constant.
+	 *
+	 * @param value the float
+	 *
+	 * @return the constant
+	 */
+	SymbolicExpression real(
+			double value) {
+		return new Constant(Float64Type.INSTANCE, value, location);
+	}
+
+	/**
+	 * Yields a value about which nothing is known.
+	 *
+	 * @param type the static type of the value
+	 *
+	 * @return the value
+	 */
+	SymbolicExpression unknown(
+			Type type) {
+		return new PushAny(type, location);
+	}
+
+	/**
+	 * Yields a value about which nothing is known, not even its type.
+	 *
+	 * @return the value
+	 */
+	SymbolicExpression unknown() {
+		return unknown(Untyped.INSTANCE);
+	}
+
+	/**
+	 * Yields the product of two numbers, with Python semantics.
+	 *
+	 * @param left  the first factor
+	 * @param right the second factor
+	 *
+	 * @return the product
+	 */
+	SymbolicExpression times(
+			SymbolicExpression left,
+			SymbolicExpression right) {
+		return binary(Untyped.INSTANCE, NumericNonOverflowingMul.INSTANCE, left, right);
+	}
+
+	/**
+	 * Yields the largest integer not greater than a number, as
+	 * {@code math.floor} computes it.
+	 *
+	 * @param value the number
+	 *
+	 * @return the integer
+	 */
+	SymbolicExpression floor(
+			SymbolicExpression value) {
+		return new UnaryExpression(Int64Type.INSTANCE, value, NumericFloor.INSTANCE, location);
+	}
+
+	/**
+	 * Yields the condition {@code left < right}, with Python semantics.
+	 *
+	 * @param left  the first operand
+	 * @param right the second operand
+	 *
+	 * @return the condition
+	 */
+	SymbolicExpression lessThan(
+			SymbolicExpression left,
+			SymbolicExpression right) {
+		return binary(BoolType.INSTANCE, PyComparisonLt.INSTANCE, left, right);
+	}
+
+	/**
+	 * Yields the condition {@code left <= right}, with Python semantics.
+	 *
+	 * @param left  the first operand
+	 * @param right the second operand
+	 *
+	 * @return the condition
+	 */
+	SymbolicExpression lessOrEqual(
+			SymbolicExpression left,
+			SymbolicExpression right) {
+		return binary(BoolType.INSTANCE, PyComparisonLe.INSTANCE, left, right);
 	}
 
 	/**
@@ -159,6 +258,20 @@ final class Expressions {
 			SymbolicExpression left,
 			SymbolicExpression right) {
 		return binary(BoolType.INSTANCE, LogicalOr.INSTANCE, left, right);
+	}
+
+	/**
+	 * Yields the condition that holds when both of two conditions do.
+	 *
+	 * @param left  the first condition
+	 * @param right the second condition
+	 *
+	 * @return the conjunction
+	 */
+	SymbolicExpression and(
+			SymbolicExpression left,
+			SymbolicExpression right) {
+		return binary(BoolType.INSTANCE, LogicalAnd.INSTANCE, left, right);
 	}
 
 	/**

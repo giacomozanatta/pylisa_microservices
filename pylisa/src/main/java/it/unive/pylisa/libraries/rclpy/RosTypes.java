@@ -30,6 +30,31 @@ final class RosTypes {
 	 */
 	static final String SERVICE = "rclpy.service.Service";
 
+	/**
+	 * {@code rclpy.subscription.Subscription}.
+	 */
+	static final String SUBSCRIPTION = "rclpy.subscription.Subscription";
+
+	/**
+	 * {@code rclpy.timer.Timer}.
+	 */
+	static final String TIMER = "rclpy.timer.Timer";
+
+	/**
+	 * {@code rclpy.client.Client}.
+	 */
+	static final String CLIENT = "rclpy.client.Client";
+
+	/**
+	 * {@code rclpy.guard_condition.GuardCondition}.
+	 */
+	static final String GUARD_CONDITION = "rclpy.guard_condition.GuardCondition";
+
+	/**
+	 * {@code rclpy.task.Future}.
+	 */
+	static final String FUTURE = "rclpy.task.Future";
+
 	private RosTypes() {
 	}
 

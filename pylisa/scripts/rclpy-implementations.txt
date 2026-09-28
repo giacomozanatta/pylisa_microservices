@@ -14,3 +14,12 @@ rclpy.spin_once it.unive.pylisa.libraries.rclpy.SpinOnce
 rclpy.spin_until_future_complete it.unive.pylisa.libraries.rclpy.SpinUntilFutureComplete
 rclpy.get_global_executor it.unive.pylisa.libraries.rclpy.GetGlobalExecutor
 rclpy.executors.Executor.add_node it.unive.pylisa.libraries.rclpy.AddNode
+rclpy.node.Node.create_publisher it.unive.pylisa.libraries.rclpy.CreatePublisher
+rclpy.node.Node.create_subscription it.unive.pylisa.libraries.rclpy.CreateSubscription
+rclpy.node.Node.create_timer it.unive.pylisa.libraries.rclpy.CreateTimer
+rclpy.node.Node.create_service it.unive.pylisa.libraries.rclpy.CreateService
+rclpy.node.Node.create_client it.unive.pylisa.libraries.rclpy.CreateClient
+rclpy.node.Node.create_guard_condition it.unive.pylisa.libraries.rclpy.CreateGuardCondition
+rclpy.node.Node.resolve_topic_name it.unive.pylisa.libraries.rclpy.ResolveTopicName
+rclpy.node.Node.resolve_service_name it.unive.pylisa.libraries.rclpy.ResolveServiceName
+rclpy.client.Client.call_async it.unive.pylisa.libraries.rclpy.CallAsync

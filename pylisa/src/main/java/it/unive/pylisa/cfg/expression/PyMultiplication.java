@@ -7,6 +7,7 @@ import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.numeric.Multiplication;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.pylisa.symbolic.operators.PythonArithmetic;
 import it.unive.lisa.symbolic.value.BinaryExpression;
 import it.unive.lisa.type.Type;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
@@ -42,8 +43,8 @@ public class PyMultiplication extends Multiplication {
 			return state;
 
 		// string repeat: STRING * Integer || Integer * String
-		if ((rtsl.stream().anyMatch(Type::isStringType) && rtsr.stream().anyMatch(Type::isNumericType)) ||
-				(rtsr.stream().anyMatch(Type::isStringType) && rtsl.stream().anyMatch(Type::isNumericType))) {
+		if ((rtsl.stream().anyMatch(Type::isStringType) && rtsr.stream().anyMatch(NumericOperands::isNumber)) ||
+				(rtsr.stream().anyMatch(Type::isStringType) && rtsl.stream().anyMatch(NumericOperands::isNumber))) {
 			return interprocedural.getAnalysis().smallStepSemantics(
 					state,
 					new BinaryExpression(
@@ -54,7 +55,7 @@ public class PyMultiplication extends Multiplication {
 							getLocation()),
 					this);
 		}
-		return super.fwdBinarySemantics(interprocedural, state, left, right, expressions);
+		return NumericOperands.apply(interprocedural, state, left, right, PythonArithmetic.Mul.INSTANCE, this);
 
 	}
 }

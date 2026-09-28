@@ -60,6 +60,17 @@ public final class PyExceptionType implements Type {
 	 */
 	public static final PyExceptionType RUNTIME_ERROR = subclass("builtins.RuntimeError", EXCEPTION);
 
+	/**
+	 * {@code ArithmeticError}.
+	 */
+	public static final PyExceptionType ARITHMETIC_ERROR = subclass("builtins.ArithmeticError", EXCEPTION);
+
+	/**
+	 * {@code OverflowError}, raised for instance when an infinite float is
+	 * converted to an integer.
+	 */
+	public static final PyExceptionType OVERFLOW_ERROR = subclass("builtins.OverflowError", ARITHMETIC_ERROR);
+
 	private final String name;
 
 	private final PyExceptionType superclass;

@@ -4,11 +4,15 @@ import it.unive.lisa.analysis.AbstractDomain;
 import it.unive.lisa.analysis.AbstractLattice;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.lisa.program.type.StringType;
 import it.unive.pylisa.cfg.type.PyExceptionType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
- * The rules ROS 2 applies to the names of nodes and namespaces, as rcl and rmw
- * apply them when a node is created.
+ * The rules ROS 2 applies to the names of nodes, namespaces, topics and
+ * services, as rcl and rmw apply them when a node or one of its entities is
+ * created.
  * <p>
  * Every rule is a case analysis on abstract strings: each case is explored
  * under the assumption that its condition holds, a case that no execution can
@@ -33,7 +37,104 @@ final class RosNames {
 	 */
 	static final String NAMESPACE = "/|(/[A-Za-z_][A-Za-z0-9_]*)+";
 
+	/**
+	 * A topic or service name as a program may give it, when it contains no
+	 * substitution: {@code ~}, {@code ~} followed by one letter, digit or
+	 * underscore (rcl checks that {@code ~} is followed by {@code /} only in
+	 * names longer than two characters), or a sequence of {@code /}-separated
+	 * tokens, each a valid node name, optionally preceded by {@code /}
+	 * (absolute) or {@code ~/} (private). This accepts exactly the names that
+	 * pass both the validation of the given name and the validation of its
+	 * expansion, apart from the length limit, which only the expansion has.
+	 */
+	static final String TOPIC = "~[A-Za-z0-9_]?|(~/|/)?[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*)*";
+
+	/**
+	 * A fully expanded topic or service name: absolute, made of valid tokens,
+	 * at most 247 characters long.
+	 */
+	static final String FULL_TOPIC = "(?=.{1,247}$)(/[A-Za-z_][A-Za-z0-9_]*)+";
+
+	private static final Logger LOG = LogManager.getLogger(RosNames.class);
+
 	private RosNames() {
+	}
+
+	/**
+	 * Resolves a topic or service name against a node, as rcl does when the
+	 * entity is created: a name with a substitution (such as {@code {node}})
+	 * is unknown, and may also be rejected as invalid or as an unknown
+	 * substitution ({@code RCLError}); an invalid name raises; an absolute
+	 * name stays as it is; a name starting with {@code ~} continues the fully
+	 * qualified name of the node; any other name is relative to the namespace
+	 * of the node. Remapping rules given from outside the program are not
+	 * applied.
+	 *
+	 * @param <A>      the kind of abstract state
+	 * @param <D>      the kind of abstract domain
+	 * @param state    the state
+	 * @param build    the factory of expressions
+	 * @param node     a reference to the node
+	 * @param name     the name as given by the program
+	 * @param invalid  the exception raised for an invalid name
+	 * @param resolved what to do with the resolved name
+	 *
+	 * @return the join of the outcomes of every case
+	 *
+	 * @throws SemanticException if a condition cannot be evaluated
+	 */
+	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> resolve(
+			ModelState<A, D> state,
+			Expressions build,
+			SymbolicExpression node,
+			SymbolicExpression name,
+			PyExceptionType invalid,
+			ModelState.Step<A, D, SymbolicExpression> resolved)
+			throws SemanticException {
+		return state.branch(build.contains(name, "{"),
+				(substituted, condition) -> {
+					LOG.info("substitution-not-modelled: the name created at {} is unknown", build.location());
+					return resolved.apply(substituted, build.unknown(StringType.INSTANCE))
+							.lub(substituted.raise(invalid))
+							.lub(substituted.raise(RclpyExceptions.RCL_ERROR));
+				},
+				(plain, condition) -> requireValid(plain, build, name, TOPIC, invalid,
+						(valid, validName) -> expand(valid, build, node, validName,
+								(expanded, fullName) -> requireValid(expanded, build, fullName, FULL_TOPIC,
+										invalid, resolved))));
+	}
+
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> expand(
+			ModelState<A, D> state,
+			Expressions build,
+			SymbolicExpression node,
+			SymbolicExpression name,
+			ModelState.Step<A, D, SymbolicExpression> expanded)
+			throws SemanticException {
+		return state.branch(build.startsWith(name, "/"),
+				(absolute, c) -> expanded.apply(absolute, name),
+				// rcl replaces the leading ~ with the fully qualified name
+				(relative, c) -> relative.branch(build.startsWith(name, "~"),
+						(priv, c1) -> withNodeField(priv, node, NodeModel.FULLY_QUALIFIED,
+								(qualified, fqn) -> expanded.apply(qualified,
+										build.concat(fqn, build.suffix(name, 1)))),
+						(plain, c1) -> withNodeField(plain, node, NodeModel.NAMESPACE,
+								(placed, namespace) -> placed.branch(build.equal(namespace, build.string("/")),
+										(root, c2) -> expanded.apply(root, build.concat(build.string("/"), name)),
+										(nested, c2) -> expanded.apply(nested,
+												build.concat(namespace, build.string("/"), name))))));
+	}
+
+	/**
+	 * Continues with every value of a field of the node.
+	 */
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> withNodeField(
+			ModelState<A, D> state,
+			SymbolicExpression node,
+			String field,
+			ModelState.Step<A, D, SymbolicExpression> step)
+			throws SemanticException {
+		return state.forEach(state.read(node, field).values(), step);
 	}
 
 	/**

@@ -2,11 +2,11 @@ package it.unive.pylisa.frontend.expression;
 
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CFG;
+import it.unive.lisa.program.type.BoolType;
+import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.literal.Int32Literal;
 import it.unive.pylisa.cfg.expression.PyNot;
-import it.unive.lisa.program.cfg.statement.numeric.Division;
-import it.unive.lisa.program.cfg.statement.numeric.Subtraction;
 import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.AddContext;
 import it.unive.pylisa.antlr.Python3Parser.And_exprContext;
@@ -30,6 +30,9 @@ import it.unive.pylisa.antlr.Python3Parser.Right_shiftContext;
 import it.unive.pylisa.antlr.Python3Parser.TermContext;
 import it.unive.pylisa.antlr.Python3Parser.Xor_exprContext;
 import it.unive.pylisa.cfg.expression.PyAddition;
+import it.unive.pylisa.cfg.expression.PyDivision;
+import it.unive.pylisa.cfg.expression.PySubtraction;
+import org.antlr.v4.runtime.ParserRuleContext;
 import it.unive.pylisa.cfg.expression.PyBitwiseAnd;
 import it.unive.pylisa.cfg.expression.PyBitwiseLeftShift;
 import it.unive.pylisa.cfg.expression.PyBitwiseNot;
@@ -114,10 +117,24 @@ public final class BinaryOpVisitor {
 
 	private Expression buildComparison(
 			ComparisonContext pctx) {
-		Comp_opContext op = pctx.comp_op(0);
+		Expression first = buildSingleComparison(pctx, pctx.comp_op(0), support.getLocation(pctx));
+		if (pctx.comp_op().size() == 1)
+			return first;
+		// a chain a < b < c holds when every comparison does, and each
+		// operand is evaluated once; the comparisons after the first are not
+		// built (their operands would be evaluated twice), so the chain is the
+		// first comparison and an unknown truth value
+		SourceCodeLocation rest = support.getLocation(pctx.comp_op(1));
+		return new PyAnd(ctx.currentCFG(), support.getLocation(pctx.comp_op(0)), first,
+				new PyUnknownLiteral(ctx.currentCFG(), rest, pctx.getText(), BoolType.INSTANCE));
+	}
+
+	private Expression buildSingleComparison(
+			ComparisonContext pctx,
+			Comp_opContext op,
+			SourceCodeLocation loc) {
 		Expression left = visitExpr(pctx.expr(0));
 		Expression right = visitExpr(pctx.expr(1));
-		SourceCodeLocation loc = support.getLocation(pctx);
 		if (op.IN() != null)
 			return negateIf(op.NOT() != null, loc,
 					new PyIn(ctx.currentCFG(), loc, left, right));
@@ -228,34 +245,48 @@ public final class BinaryOpVisitor {
 
 	public Expression visitMinus(
 			MinusContext pctx) {
-		if (pctx.arith_expr() == null)
-			return visitTerm(pctx.term());
-		return new Subtraction(ctx.currentCFG(), support.getLocation(pctx),
-				visitTerm(pctx.term()),
-				visitArith_expr(pctx.arith_expr()));
+		return foldArithmetic(pctx);
 	}
 
 	public Expression visitAdd(
 			AddContext pctx) {
-		if (pctx.arith_expr() == null)
-			return visitTerm(pctx.term());
-		return new PyAddition(ctx.currentCFG(), support.getLocation(pctx),
-				visitTerm(pctx.term()),
-				visitArith_expr(pctx.arith_expr()));
+		return foldArithmetic(pctx);
+	}
+
+	/**
+	 * Builds a chain of additions and subtractions. The grammar nests the
+	 * chain to the right ({@code a - (b - c)}), while Python groups it to the
+	 * left ({@code (a - b) - c}): the operands are collected in order and
+	 * combined from the left.
+	 *
+	 * @param link the first link of the chain, a {@link MinusContext} or an
+	 *                 {@link AddContext}
+	 *
+	 * @return the expression
+	 */
+	private Expression foldArithmetic(
+			ParserRuleContext link) {
+		Expression result = visitTerm(link.getRuleContext(TermContext.class, 0));
+		while (link != null) {
+			Arith_exprContext rest = link.getRuleContext(Arith_exprContext.class, 0);
+			if (rest == null)
+				return result;
+			ParserRuleContext next = rest.minus() != null ? rest.minus() : rest.add();
+			Expression operand = visitTerm(next != null ? next.getRuleContext(TermContext.class, 0) : rest.term());
+			SourceCodeLocation location = support.getLocation(link);
+			result = link instanceof MinusContext
+					? new PySubtraction(ctx.currentCFG(), location, result, operand)
+					: new PyAddition(ctx.currentCFG(), location, result, operand);
+			link = next;
+		}
+		return result;
 	}
 
 	public Expression visitTerm(
 			TermContext pctx) {
-		if (pctx.mul() != null)
-			return visitMul(pctx.mul());
-		if (pctx.mat_mul() != null)
-			return visitMat_mul(pctx.mat_mul());
-		if (pctx.div() != null)
-			return visitDiv(pctx.div());
-		if (pctx.mod() != null)
-			return visitMod(pctx.mod());
-		if (pctx.floorDiv() != null)
-			return visitFloorDiv(pctx.floorDiv());
+		ParserRuleContext link = termLink(pctx);
+		if (link != null)
+			return foldTerm(link);
 		if (pctx.factor() != null)
 			return visitFactor(pctx.factor());
 		throw new UnsupportedStatementException();
@@ -263,47 +294,81 @@ public final class BinaryOpVisitor {
 
 	public Expression visitMul(
 			MulContext pctx) {
-		if (pctx.term() == null)
-			return visitFactor(pctx.factor());
-		return new PyMultiplication(ctx.currentCFG(), support.getLocation(pctx),
-				visitFactor(pctx.factor()),
-				visitTerm(pctx.term()));
+		return foldTerm(pctx);
 	}
 
 	public Expression visitMat_mul(
 			Mat_mulContext pctx) {
-		if (pctx.term() == null)
-			return visitFactor(pctx.factor());
-		return new PyMatMul(ctx.currentCFG(), support.getLocation(pctx),
-				visitFactor(pctx.factor()),
-				visitTerm(pctx.term()));
+		return foldTerm(pctx);
 	}
 
 	public Expression visitDiv(
 			DivContext pctx) {
-		if (pctx.term() == null)
-			return visitFactor(pctx.factor());
-		return new Division(ctx.currentCFG(), support.getLocation(pctx),
-				visitFactor(pctx.factor()),
-				visitTerm(pctx.term()));
+		return foldTerm(pctx);
 	}
 
 	public Expression visitMod(
 			ModContext pctx) {
-		if (pctx.term() == null)
-			return visitFactor(pctx.factor());
-		return new PyRemainder(ctx.currentCFG(), support.getLocation(pctx),
-				visitFactor(pctx.factor()),
-				visitTerm(pctx.term()));
+		return foldTerm(pctx);
 	}
 
 	public Expression visitFloorDiv(
 			FloorDivContext pctx) {
-		if (pctx.term() == null)
-			return visitFactor(pctx.factor());
-		return new PyFloorDiv(ctx.currentCFG(), support.getLocation(pctx),
-				visitFactor(pctx.factor()),
-				visitTerm(pctx.term()));
+		return foldTerm(pctx);
+	}
+
+	private static ParserRuleContext termLink(
+			TermContext term) {
+		if (term.mul() != null)
+			return term.mul();
+		if (term.mat_mul() != null)
+			return term.mat_mul();
+		if (term.div() != null)
+			return term.div();
+		if (term.mod() != null)
+			return term.mod();
+		return term.floorDiv();
+	}
+
+	/**
+	 * Builds a chain of multiplicative operators, grouped to the left as
+	 * Python does (see {@link #foldArithmetic}).
+	 *
+	 * @param link the first link of the chain
+	 *
+	 * @return the expression
+	 */
+	private Expression foldTerm(
+			ParserRuleContext link) {
+		Expression result = visitFactor(link.getRuleContext(FactorContext.class, 0));
+		while (link != null) {
+			TermContext rest = link.getRuleContext(TermContext.class, 0);
+			if (rest == null)
+				return result;
+			ParserRuleContext next = termLink(rest);
+			Expression operand = visitFactor(
+					next != null ? next.getRuleContext(FactorContext.class, 0) : rest.factor());
+			result = combineTerm(link, support.getLocation(link), result, operand);
+			link = next;
+		}
+		return result;
+	}
+
+	private Expression combineTerm(
+			ParserRuleContext link,
+			SourceCodeLocation location,
+			Expression left,
+			Expression right) {
+		CFG cfg = ctx.currentCFG();
+		if (link instanceof MulContext)
+			return new PyMultiplication(cfg, location, left, right);
+		if (link instanceof Mat_mulContext)
+			return new PyMatMul(cfg, location, left, right);
+		if (link instanceof DivContext)
+			return new PyDivision(cfg, location, left, right);
+		if (link instanceof ModContext)
+			return new PyRemainder(cfg, location, left, right);
+		return new PyFloorDiv(cfg, location, left, right);
 	}
 
 	public Expression visitFactor(

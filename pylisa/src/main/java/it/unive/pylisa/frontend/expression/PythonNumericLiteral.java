@@ -7,7 +7,7 @@ package it.unive.pylisa.frontend.expression;
  */
 public final class PythonNumericLiteral {
 
-	public sealed interface Parsed permits IntegerLit, FloatLit, ComplexLit {
+	public sealed interface Parsed permits IntegerLit, LongLit, BigIntegerLit, FloatLit, ComplexLit {
 	}
 
 	public record IntegerLit(
@@ -16,14 +16,33 @@ public final class PythonNumericLiteral {
 			Parsed {
 	}
 
+	/**
+	 * An integer that does not fit 32 bits but fits 64 bits.
+	 */
+	public record LongLit(
+			long value)
+			implements
+			Parsed {
+	}
+
+	/**
+	 * An integer that does not fit 64 bits: Python integers are unbounded,
+	 * but the analysis does not represent such values.
+	 */
+	public record BigIntegerLit(
+			java.math.BigInteger value)
+			implements
+			Parsed {
+	}
+
 	public record FloatLit(
-			float value)
+			double value)
 			implements
 			Parsed {
 	}
 
 	public record ComplexLit(
-			float imag)
+			double imag)
 			implements
 			Parsed {
 	}
@@ -32,16 +51,27 @@ public final class PythonNumericLiteral {
 			String raw) {
 		String s = raw.toLowerCase().replace("_", "");
 		if (s.endsWith("j"))
-			return new ComplexLit(Float.parseFloat(s.substring(0, s.length() - 1)));
-		if (s.contains(".") || s.contains("e"))
-			return new FloatLit(Float.parseFloat(s));
+			return new ComplexLit(Double.parseDouble(s.substring(0, s.length() - 1)));
+		// prefixed literals are integers, whose digits may include 'e'
+		if (!s.startsWith("0x") && !s.startsWith("0o") && !s.startsWith("0b")
+				&& (s.contains(".") || s.contains("e")))
+			return new FloatLit(Double.parseDouble(s));
 		if (s.startsWith("0x"))
-			return new IntegerLit(Integer.parseInt(s.substring(2), 16));
+			return integer(new java.math.BigInteger(s.substring(2), 16));
 		if (s.startsWith("0o"))
-			return new IntegerLit(Integer.parseInt(s.substring(2), 8));
+			return integer(new java.math.BigInteger(s.substring(2), 8));
 		if (s.startsWith("0b"))
-			return new IntegerLit(Integer.parseInt(s.substring(2), 2));
-		return new IntegerLit(Integer.parseInt(s));
+			return integer(new java.math.BigInteger(s.substring(2), 2));
+		return integer(new java.math.BigInteger(s));
+	}
+
+	private static Parsed integer(
+			java.math.BigInteger value) {
+		if (value.bitLength() < Integer.SIZE)
+			return new IntegerLit(value.intValue());
+		if (value.bitLength() < Long.SIZE)
+			return new LongLit(value.longValue());
+		return new BigIntegerLit(value);
 	}
 
 	private PythonNumericLiteral() {

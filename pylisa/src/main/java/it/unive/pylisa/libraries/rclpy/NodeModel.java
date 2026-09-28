@@ -192,7 +192,7 @@ final class NodeModel {
 					.write(self, NAMESPACE, namespace)
 					.write(self, FULLY_QUALIFIED, fullName)
 					.write(self, CONTEXT, context);
-			return createBuiltInEntities(named, build, site, self, name, fullName, startParameterServices)
+			return createBuiltInEntities(named, build, site, self, name, startParameterServices)
 					.returning(build.none());
 		}
 	}
@@ -243,24 +243,27 @@ final class NodeModel {
 			CodeLocation site,
 			SymbolicExpression self,
 			SymbolicExpression name,
-			SymbolicExpression fullName,
 			SymbolicExpression startParameterServices)
 			throws SemanticException {
 		ModelState<A, D> withEvents = EntityModels.publisher(state, build,
 				new TaggedLocation(site, "parameter_events"), self,
 				build.string("rcl_interfaces.msg.ParameterEvent"),
 				build.string("/parameter_events"), build.string("/parameter_events"),
-				build.integer(PARAMETER_EVENTS_DEPTH));
+				build.unknown(), build.integer(PARAMETER_EVENTS_DEPTH));
 		return withEvents.branch(startParameterServices,
 				(enabled, condition) -> {
 					ModelState<A, D> result = enabled;
 					for (String[] service : PARAMETER_SERVICES) {
-						String suffix = "/" + service[0];
-						// the service name is relative to the node: it resolves
-						// under the fully qualified name of the node
-						result = EntityModels.service(result, build, new TaggedLocation(site, service[0]), self,
-								build.string(service[1]), build.concat(name, build.string(suffix)),
-								build.concat(fullName, build.string(suffix)), build.none());
+						// rclpy creates each service with the name
+						// <node name>/<suffix>, resolved as any other service
+						// name; the callback and the quality of service are
+						// internal to rclpy
+						SymbolicExpression srvName = build.concat(name, build.string("/" + service[0]));
+						CodeLocation serviceSite = new TaggedLocation(site, service[0]);
+						result = RosNames.resolve(result, build, self, srvName, RclpyExceptions.INVALID_SERVICE_NAME,
+								(resolved, serviceName) -> EntityModels.service(resolved, build, serviceSite, self,
+										build.string(service[1]), srvName, serviceName, build.unknown(),
+										build.unknown()));
 					}
 					return result;
 				},
