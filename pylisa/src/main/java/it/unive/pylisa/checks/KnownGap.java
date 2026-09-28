@@ -81,6 +81,15 @@ public enum KnownGap {
 	CALLBACKS_NOT_RUN("callbacks registered with libraries are never executed"),
 
 	/**
+	 * {@code import a.b} binds a variable named {@code a.b} instead of binding
+	 * {@code a} and making {@code b} one of its attributes, so {@code a.b.X}
+	 * is unknown; {@code import a.b as c} ignores the alias, and
+	 * {@code import x, y} imports only {@code x}. {@code from a.b import X}
+	 * works.
+	 */
+	DOTTED_IMPORTS("import a.b does not make a.b reachable as an attribute of a; aliases and multiple names are ignored"),
+
+	/**
 	 * Exception handlers are not modelled: the body of a {@code try} block is
 	 * analysed as if no exception could be caught.
 	 */

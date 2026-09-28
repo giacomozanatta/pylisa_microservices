@@ -40,6 +40,12 @@ import java.util.stream.Collectors;
  */
 public final class RosTestHelper {
 
+	/**
+	 * The directory holding the Python modules of the ROS 2 interface packages
+	 * the test programs import, as generated from their definitions.
+	 */
+	static final Path INTERFACE_STUBS = Paths.get("src/test/resources/interfaces");
+
 	private final Path program;
 
 	private final RosConfig config;
@@ -83,7 +89,9 @@ public final class RosTestHelper {
 			AnalysisSetupException,
 			AnalysisException {
 		Path path = Paths.get(program);
-		Program lisaProgram = new PyFrontend(program, false).toLiSAProgram(true);
+		Program lisaProgram = new PyFrontend(program, false)
+				.addModuleSearchPath(INTERFACE_STUBS)
+				.toLiSAProgram(true);
 		LiSAConfiguration conf = config.configuration("ros2-state/" + stem(path) + "/" + config.name());
 		ResultCollector<?, ?> collector = new ResultCollector<>();
 		AssertChecker<?, ?> checker = new AssertChecker<>();

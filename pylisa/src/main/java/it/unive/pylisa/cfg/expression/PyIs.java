@@ -9,7 +9,16 @@ import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.lisa.symbolic.value.PushAny;
+import it.unive.lisa.symbolic.value.operator.binary.ComparisonEq;
+import it.unive.pylisa.symbolic.PyNoneConstant;
 
+/**
+ * The Python comparison {@code left is right}: whether the two operands are the
+ * same object. Identity with {@code None} is decided from the values of the
+ * operands, since {@code None} is a singleton; the identity of other objects is
+ * not tracked, and the comparison is then an unknown boolean.
+ */
 public class PyIs extends BinaryExpression {
 
 	public PyIs(
@@ -34,7 +43,15 @@ public class PyIs extends BinaryExpression {
 			SymbolicExpression right,
 			StatementStore<A> expressions)
 			throws SemanticException {
-		return state;
-		// throw new UnsupportedStatementException(this);
+		SymbolicExpression identity;
+		if (left instanceof PyNoneConstant || right instanceof PyNoneConstant)
+			// None is a singleton: an object is None exactly when it equals
+			// None, which the value domains decide
+			identity = new it.unive.lisa.symbolic.value.BinaryExpression(BoolType.INSTANCE, left, right,
+					ComparisonEq.INSTANCE, getLocation());
+		else
+			// the identity of other objects is not tracked
+			identity = new PushAny(BoolType.INSTANCE, getLocation());
+		return interprocedural.getAnalysis().smallStepSemantics(state, identity, this);
 	}
 }

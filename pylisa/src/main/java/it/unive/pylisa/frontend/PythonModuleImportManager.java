@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -69,6 +70,12 @@ public class PythonModuleImportManager {
 	private final String packageName;
 	private ProjectFileLoader projectLoader;
 
+	/**
+	 * The providers of modules that are neither project files nor libraries,
+	 * asked in registration order.
+	 */
+	private final List<ModuleProvider> moduleProviders = new ArrayList<>();
+
 	public PythonModuleImportManager(
 			Program program,
 			CFG init,
@@ -110,6 +117,18 @@ public class PythonModuleImportManager {
 	public void setProjectLoader(
 			ProjectFileLoader loader) {
 		this.projectLoader = loader;
+	}
+
+	/**
+	 * Registers a provider of modules. Providers are asked, in registration
+	 * order, for the modules that are neither files of the project nor
+	 * library specifications, before such a module is treated as unknown.
+	 *
+	 * @param provider the provider
+	 */
+	public void addModuleProvider(
+			ModuleProvider provider) {
+		moduleProviders.add(Objects.requireNonNull(provider));
 	}
 
 	/**
@@ -214,6 +233,12 @@ public class PythonModuleImportManager {
 		}
 
 		if (unit == null) {
+			Optional<Path> provided = provideModule(moduleName);
+			if (provided.isPresent())
+				unit = loadProjectModule(moduleName, provided.get());
+		}
+
+		if (unit == null) {
 			unit = createUnknownModule(moduleName);
 		}
 
@@ -266,6 +291,20 @@ public class PythonModuleImportManager {
 		} finally {
 			importingLibraries.remove(moduleName);
 		}
+	}
+
+	private Optional<Path> provideModule(
+			String moduleName) {
+		for (ModuleProvider provider : moduleProviders)
+			try {
+				Optional<Path> file = provider.provide(moduleName);
+				if (file.isPresent())
+					return file;
+			} catch (IOException e) {
+				log.warn("[PyLiSA] A module provider failed to produce {}: the module is unknown", moduleName, e);
+				return Optional.empty();
+			}
+		return Optional.empty();
 	}
 
 	private void registerUnknownAncestors(

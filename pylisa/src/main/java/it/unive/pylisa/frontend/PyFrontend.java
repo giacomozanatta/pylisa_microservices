@@ -201,6 +201,34 @@ public final class PyFrontend {
 	}
 
 	/**
+	 * Registers a provider of modules that are neither files of the analysed
+	 * project nor library specifications. Must be called before
+	 * {@link #toLiSAProgram()}.
+	 *
+	 * @param provider the provider
+	 *
+	 * @return this frontend
+	 */
+	public PyFrontend addModuleProvider(
+			ModuleProvider provider) {
+		this.ctx.importManager().addModuleProvider(provider);
+		return this;
+	}
+
+	/**
+	 * Adds a directory to the module search path, as an entry of
+	 * {@code PYTHONPATH} does. Must be called before {@link #toLiSAProgram()}.
+	 *
+	 * @param root the directory
+	 *
+	 * @return this frontend
+	 */
+	public PyFrontend addModuleSearchPath(
+			Path root) {
+		return addModuleProvider(ModuleProvider.searchPath(root));
+	}
+
+	/**
 	 * Marks the given fully-qualified module names as excluded from parsing
 	 * and analysis. Imports referencing them resolve to
 	 * {@code UnknownModuleUnit} stubs; calls into them return top under the
