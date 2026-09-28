@@ -41,3 +41,4 @@ rclpy.node.Node.describe_parameter it.unive.pylisa.libraries.rclpy.ReadParameter
 rclpy.node.Node.describe_parameters it.unive.pylisa.libraries.rclpy.ReadParameters
 rclpy.node.Node.add_on_set_parameters_callback it.unive.pylisa.libraries.rclpy.AddSetParametersCallback
 rclpy.node.Node.remove_on_set_parameters_callback it.unive.pylisa.libraries.rclpy.RemoveSetParametersCallback
+rclpy.publisher.Publisher.publish it.unive.pylisa.libraries.rclpy.Publish

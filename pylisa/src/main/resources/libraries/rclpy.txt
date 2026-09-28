@@ -198,7 +198,7 @@ library rclpy.publisher:
             param qos_profile type it.unive.lisa.type.Untyped::INSTANCE
             param event_callbacks type it.unive.lisa.type.Untyped::INSTANCE
             param callback_group type it.unive.lisa.type.Untyped::INSTANCE
-        instance method publish: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method publish: it.unive.pylisa.libraries.rclpy.Publish
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Publisher*
             param msg type it.unive.lisa.type.Untyped::INSTANCE
