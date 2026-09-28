@@ -4,6 +4,7 @@ plugins {
    	id 'eclipse'
    	id "com.diffplug.spotless" version "6.18.0"
    	id 'maven-publish'
+   	id 'java-test-fixtures'
     id 'signing'
 }
 
@@ -44,6 +45,12 @@ dependencies {
     implementation 'io.github.classgraph:classgraph:4.8.175'
 
     implementation 'org.graphstream:gs-core:2.0'
+
+    // the state test helper, shared with projects that test library models
+    testFixturesApi "io.github.lisa-analyzer:lisa-sdk:${lisaVersion}"
+    testFixturesApi "io.github.lisa-analyzer:lisa-analyses:${lisaVersion}"
+    testFixturesApi "io.github.lisa-analyzer:lisa-program:${lisaVersion}"
+    testFixturesApi 'org.junit.jupiter:junit-jupiter-api:5.10.3'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
     testImplementation 'org.assertj:assertj-core:3.26.3'
