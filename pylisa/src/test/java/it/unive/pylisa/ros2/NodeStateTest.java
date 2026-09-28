@@ -96,6 +96,17 @@ class NodeStateTest {
 		assertEquals("rclpy.executors.SingleThreadedExecutor", point.object("m").ref("executor").type());
 	}
 
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void aNodeCannotBeCreatedAfterShutdown(
+			RosConfig config)
+			throws Exception {
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/nodes/context_lifecycle.py", config);
+		helper.assertAllProved();
+		Set<String> errors = helper.after("@late").errors();
+		assertTrue(errors.contains("rclpy.exceptions.NotInitializedException"), errors.toString());
+	}
+
 	private static Set<Obj> entitiesOf(
 			Point point,
 			String type,
