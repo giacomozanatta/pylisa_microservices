@@ -374,7 +374,7 @@ library rclpy.executors:
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Executor*
             param timeout_sec type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method add_node: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method add_node: it.unive.pylisa.libraries.rclpy.AddNode
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Executor*
             param node type it.unive.lisa.type.Untyped::INSTANCE
@@ -459,7 +459,7 @@ library rclpy.node:
     imports rclpy.service
     imports rclpy.guard_condition
     class Node extends builtins.object:
-        instance method __init__: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method __init__: it.unive.pylisa.libraries.rclpy.NodeInit
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param node_name type it.unive.lisa.type.Untyped::INSTANCE
@@ -472,10 +472,10 @@ library rclpy.node:
             param &parameter_overrides type it.unive.lisa.type.Untyped::INSTANCE default none
             param &allow_undeclared_parameters type it.unive.lisa.type.Untyped::INSTANCE default false
             param &automatically_declare_parameters_from_overrides type it.unive.lisa.type.Untyped::INSTANCE default false
-        instance method get_name: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method get_name: it.unive.pylisa.libraries.rclpy.GetName
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
-        instance method get_namespace: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method get_namespace: it.unive.pylisa.libraries.rclpy.GetNamespace
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
         instance method get_clock: it.unive.pylisa.libraries.rclpy.RosUnknownResult
@@ -700,7 +700,7 @@ library rclpy.node:
         instance method get_node_names_and_namespaces_with_enclaves: it.unive.pylisa.libraries.rclpy.RosUnknownResult
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
-        instance method get_fully_qualified_name: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method get_fully_qualified_name: it.unive.pylisa.libraries.rclpy.GetFullyQualifiedName
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
         instance method count_publishers: it.unive.pylisa.libraries.rclpy.RosUnknownResult
@@ -729,17 +729,17 @@ library rclpy:
     imports rclpy.executors
     imports rclpy.task
     imports rclpy.parameter
-    method init: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method init: it.unive.pylisa.libraries.rclpy.RclpyInit
         type it.unive.lisa.type.Untyped::INSTANCE
         param &args type it.unive.lisa.type.Untyped::INSTANCE default none
         param &context type it.unive.lisa.type.Untyped::INSTANCE default none
         param &domain_id type it.unive.lisa.type.Untyped::INSTANCE default none
         param &signal_handler_options type it.unive.lisa.type.Untyped::INSTANCE default none
-    method shutdown: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method shutdown: it.unive.pylisa.libraries.rclpy.RclpyShutdown
         type it.unive.lisa.type.Untyped::INSTANCE
         param &context type it.unive.lisa.type.Untyped::INSTANCE default none
         param &uninstall_handlers type it.unive.lisa.type.Untyped::INSTANCE default none
-    method create_node: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method create_node: it.unive.pylisa.libraries.rclpy.CreateNode
         type it.unive.lisa.type.Untyped::INSTANCE
         param node_name type it.unive.lisa.type.Untyped::INSTANCE
         param &context type it.unive.lisa.type.Untyped::INSTANCE default none
@@ -751,26 +751,26 @@ library rclpy:
         param &parameter_overrides type it.unive.lisa.type.Untyped::INSTANCE default none
         param &allow_undeclared_parameters type it.unive.lisa.type.Untyped::INSTANCE default false
         param &automatically_declare_parameters_from_overrides type it.unive.lisa.type.Untyped::INSTANCE default false
-    method spin_once: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method spin_once: it.unive.pylisa.libraries.rclpy.SpinOnce
         type it.unive.lisa.type.Untyped::INSTANCE
         param node type it.unive.lisa.type.Untyped::INSTANCE
         param &executor type it.unive.lisa.type.Untyped::INSTANCE default none
         param &timeout_sec type it.unive.lisa.type.Untyped::INSTANCE default none
-    method spin: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method spin: it.unive.pylisa.libraries.rclpy.Spin
         type it.unive.lisa.type.Untyped::INSTANCE
         param node type it.unive.lisa.type.Untyped::INSTANCE
         param executor type it.unive.lisa.type.Untyped::INSTANCE default none
-    method spin_until_future_complete: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method spin_until_future_complete: it.unive.pylisa.libraries.rclpy.SpinUntilFutureComplete
         type it.unive.lisa.type.Untyped::INSTANCE
         param node type it.unive.lisa.type.Untyped::INSTANCE
         param future type it.unive.lisa.type.Untyped::INSTANCE
         param executor type it.unive.lisa.type.Untyped::INSTANCE default none
         param timeout_sec type it.unive.lisa.type.Untyped::INSTANCE default none
-    method get_global_executor: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method get_global_executor: it.unive.pylisa.libraries.rclpy.GetGlobalExecutor
         type it.unive.lisa.type.Untyped::INSTANCE
-    method ok: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method ok: it.unive.pylisa.libraries.rclpy.RclpyOk
         type it.unive.lisa.type.Untyped::INSTANCE
         param &context type it.unive.lisa.type.Untyped::INSTANCE default none
-    method try_shutdown: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+    method try_shutdown: it.unive.pylisa.libraries.rclpy.RclpyShutdown
         type it.unive.lisa.type.Untyped::INSTANCE
         param &context type it.unive.lisa.type.Untyped::INSTANCE default none

@@ -705,6 +705,16 @@ public class ConstantPropagation
 	}
 
 	@Override
+	public Satisfiability satisfiesConstant(
+			Constant constant,
+			ProgramPoint pp,
+			SemanticOracle oracle) {
+		if (!(constant.getValue() instanceof Boolean))
+			return Satisfiability.UNKNOWN;
+		return satisfiability((Boolean) constant.getValue());
+	}
+
+	@Override
 	public Satisfiability satisfiesBinaryExpression(
 			BinaryExpression expression,
 			ConstantPropagation left,

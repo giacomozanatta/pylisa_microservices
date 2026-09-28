@@ -16,6 +16,7 @@ import it.unive.lisa.symbolic.heap.AccessChild;
 import it.unive.lisa.symbolic.heap.HeapDereference;
 import it.unive.lisa.symbolic.heap.HeapReference;
 import it.unive.lisa.symbolic.heap.MemoryAllocation;
+import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.UnaryExpression;
 import it.unive.lisa.symbolic.value.Variable;
 import it.unive.lisa.symbolic.value.operator.unary.LogicalNegation;
@@ -23,6 +24,8 @@ import it.unive.lisa.type.ReferenceType;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyExceptionType;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * One analysis state inside the model of a library call, together with the
@@ -175,6 +178,42 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	}
 
 	/**
+	 * Applies a step to every combination of values of the given arguments,
+	 * starting each time from this state, and joins the outcomes. This is how
+	 * a model handles arguments that may each denote several values.
+	 *
+	 * @param arguments the possible values of each argument
+	 * @param step      the step, receiving one value per argument, in order
+	 *
+	 * @return the join of the outcomes, unreachable if an argument has no
+	 *             value
+	 *
+	 * @throws SemanticException if a step fails
+	 */
+	public ModelState<A, D> forEachCombination(
+			List<ExpressionSet> arguments,
+			Step<A, D, List<SymbolicExpression>> step)
+			throws SemanticException {
+		return combine(arguments, 0, new ArrayList<>(), step);
+	}
+
+	private ModelState<A, D> combine(
+			List<ExpressionSet> arguments,
+			int next,
+			List<SymbolicExpression> chosen,
+			Step<A, D, List<SymbolicExpression>> step)
+			throws SemanticException {
+		if (next == arguments.size())
+			return step.apply(this, List.copyOf(chosen));
+		return forEach(arguments.get(next), (current, value) -> {
+			chosen.add(value);
+			ModelState<A, D> outcome = current.combine(arguments, next + 1, chosen, step);
+			chosen.remove(chosen.size() - 1);
+			return outcome;
+		});
+	}
+
+	/**
 	 * Allocates a new object. Its references become the computed values.
 	 *
 	 * @param type the type of the object
@@ -189,9 +228,15 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			Type type,
 			CodeLocation site)
 			throws SemanticException {
-		AnalysisState<A> allocated = analysis.smallStepSemantics(state, new MemoryAllocation(type, site, false), point);
+		MemoryAllocation allocation = new MemoryAllocation(type, site, false);
+		// the allocation is resolved to its abstract site before it happens:
+		// resolving it again afterwards would find the site already allocated
+		// and yield its weak (summary) version, so the new object would not be
+		// updated strongly
+		ExpressionSet sites = analysis.rewrite(state, allocation, point);
+		AnalysisState<A> allocated = analysis.smallStepSemantics(state, allocation, point);
 		AnalysisState<A> result = state.bottomExecution();
-		for (SymbolicExpression location : allocated.getExecutionExpressions()) {
+		for (SymbolicExpression location : sites) {
 			HeapReference reference = new HeapReference(new ReferenceType(type), location, site);
 			result = result.lub(analysis.smallStepSemantics(allocated, reference, point));
 		}
@@ -241,6 +286,23 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	}
 
 	/**
+	 * Assigns a value to a variable.
+	 *
+	 * @param variable the variable
+	 * @param value    the value
+	 *
+	 * @return the state after the assignment
+	 *
+	 * @throws SemanticException if the assignment cannot be performed
+	 */
+	public ModelState<A, D> assign(
+			Identifier variable,
+			SymbolicExpression value)
+			throws SemanticException {
+		return with(analysis.assign(state, variable, value, point));
+	}
+
+	/**
 	 * Keeps only the executions in which a condition may hold.
 	 *
 	 * @param condition the condition
@@ -269,6 +331,36 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			throws SemanticException {
 		return assume(new UnaryExpression(BoolType.INSTANCE, condition, LogicalNegation.INSTANCE,
 				call.getLocation()));
+	}
+
+	/**
+	 * Splits the executions of this state on a condition, continues each part
+	 * with its own step, and joins the outcomes. A part that no execution can
+	 * take (because the condition certainly holds, or certainly does not) is
+	 * not explored.
+	 *
+	 * @param condition the condition
+	 * @param whenTrue  the step for the executions where the condition holds
+	 * @param whenFalse the step for the executions where it does not
+	 *
+	 * @return the join of the outcomes
+	 *
+	 * @throws SemanticException if the condition cannot be evaluated or a step
+	 *                               fails
+	 */
+	public ModelState<A, D> branch(
+			SymbolicExpression condition,
+			Step<A, D, SymbolicExpression> whenTrue,
+			Step<A, D, SymbolicExpression> whenFalse)
+			throws SemanticException {
+		ModelState<A, D> result = unreachable();
+		ModelState<A, D> holds = assume(condition);
+		if (!holds.isUnreachable())
+			result = result.lub(whenTrue.apply(holds, condition));
+		ModelState<A, D> fails = assumeNot(condition);
+		if (!fails.isUnreachable())
+			result = result.lub(whenFalse.apply(fails, condition));
+		return result;
 	}
 
 	/**

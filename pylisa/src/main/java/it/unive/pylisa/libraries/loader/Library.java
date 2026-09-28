@@ -14,6 +14,7 @@ import it.unive.pylisa.cfg.PyCFG;
 import it.unive.pylisa.cfg.expression.PyAssign;
 import it.unive.pylisa.cfg.statement.ImportClass;
 import it.unive.pylisa.cfg.statement.ImportFunction;
+import it.unive.pylisa.cfg.statement.ImportModule;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
 import it.unive.pylisa.cfg.type.*;
 import it.unive.pylisa.libraries.LibrarySpecificationParser.LibraryCreationException;
@@ -146,6 +147,28 @@ public class Library {
 		return module;
 	}
 
+	/**
+	 * Yields the units of the modules this library imports when it is
+	 * initialized: its parent packages that are part of the program, then the
+	 * modules it declares to import.
+	 *
+	 * @param program the program the library is added to
+	 *
+	 * @return the units, in import order
+	 */
+	private List<CompilationUnit> importedUnits(
+			Program program) {
+		List<String> names = new ArrayList<>();
+		for (int dot = name.indexOf('.'); dot != -1; dot = name.indexOf('.', dot + 1))
+			names.add(name.substring(0, dot));
+		names.addAll(imports);
+		List<CompilationUnit> units = new ArrayList<>();
+		for (String imported : names)
+			if (program.getUnit(imported) instanceof CompilationUnit unit)
+				units.add(unit);
+		return units;
+	}
+
 	private CFG createModuleInitCFG(
 			CodeLocation location,
 			Program program,
@@ -160,6 +183,16 @@ public class Library {
 		desc.setOverridable(false);
 		PyCFG initCFG = new PyCFG(desc);
 		Expression e = null;
+		// as in a Python module, the imports run before the rest of the body:
+		// the parent packages first, then the imported modules
+		for (CompilationUnit imported : importedUnits(program)) {
+			ImportModule importStatement = new ImportModule(initCFG, SyntheticLocation.INSTANCE,
+					imported.getName(), imported);
+			initCFG.addNode(importStatement, e == null);
+			if (e != null)
+				initCFG.addEdge(new SequentialEdge(e, importStatement));
+			e = importStatement;
+		}
 		for (ClassDef cls : getClasses()) {
 			// Use the class type itself, not an instance
 			ClassUnit lisaClassUnit = cls.toLiSAClassUnit(program, init);

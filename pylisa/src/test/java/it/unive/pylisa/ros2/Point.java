@@ -117,6 +117,23 @@ public final class Point {
 		return single(reachable(), expression(path), path);
 	}
 
+	/**
+	 * Yields the objects of the given type that exist at this point, whether
+	 * or not a variable of the program points to them.
+	 *
+	 * @param typeName the name of the type, such as
+	 *                     {@code rclpy.publisher.Publisher}
+	 *
+	 * @return the objects
+	 */
+	public Set<Obj> objectsOfType(
+			String typeName) {
+		StateView<?, ?> view = reachable();
+		return view.objectsOfType(typeName).entrySet().stream()
+				.map(entry -> new Obj(view, entry.getValue(), entry.getKey()))
+				.collect(Collectors.toSet());
+	}
+
 	@Override
 	public String toString() {
 		return description;

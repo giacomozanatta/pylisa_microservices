@@ -38,6 +38,13 @@ public enum RosConfig {
 			() -> new ValueDomainProduct<>(new ConstantPropagation(), new BoundedStringSet()),
 			ValueReader.constantPropagationWithStringSets());
 
+	/**
+	 * The system property that, when {@code true}, makes the analyses also
+	 * produce LiSA's HTML output, which shows the CFGs with the state of every
+	 * statement.
+	 */
+	public static final String HTML_PROPERTY = "lisa.ros2.html";
+
 	private final Supplier<ValueDomain<?>> valueDomain;
 
 	private final ValueReader reader;
@@ -52,7 +59,8 @@ public enum RosConfig {
 	/**
 	 * Builds the LiSA configuration for this analysis. The analysis results
 	 * are also dumped as JSON under the given working directory, so that a
-	 * failing test can be investigated on the full states.
+	 * failing test can be investigated on the full states, and as HTML too when
+	 * the system property {@value #HTML_PROPERTY} is {@code true}.
 	 *
 	 * @param workdir the working directory, relative to {@code tests/}
 	 *
@@ -61,7 +69,8 @@ public enum RosConfig {
 	public LiSAConfiguration configuration(
 			String workdir) {
 		LiSAConfiguration conf = LiSAConfigs.getDefaultConf(workdir);
-		conf.outputs.removeIf(HtmlResults.class::isInstance);
+		if (!Boolean.getBoolean(HTML_PROPERTY))
+			conf.outputs.removeIf(HtmlResults.class::isInstance);
 		conf.analysis = new SimpleAbstractDomain<>(
 				new PyFieldSensitivePointBasedHeap(),
 				valueDomain.get(),

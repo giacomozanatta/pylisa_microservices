@@ -19,6 +19,7 @@ import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyFunctionType;
+import it.unive.pylisa.cfg.type.PyModuleType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -123,6 +124,39 @@ public class FunctionApply extends NaryExpression {
 		return 0;
 	}
 
+	/**
+	 * Yields whether the receiver of this call can only be a module, as in
+	 * {@code rclpy.init()}: a function reached through a module is not a
+	 * method, and is not passed the module.
+	 *
+	 * @param <A>             the kind of abstract state
+	 * @param <D>             the kind of abstract domain
+	 * @param interprocedural the interprocedural analysis
+	 * @param state           the state after the evaluation of the arguments
+	 * @param params          the evaluated sub-expressions of this call
+	 *
+	 * @return {@code true} if every runtime type of the receiver is a module
+	 *             type
+	 *
+	 * @throws SemanticException if the types cannot be computed
+	 */
+	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> boolean receiverIsModule(
+			InterproceduralAnalysis<A, D> interprocedural,
+			AnalysisState<A> state,
+			ExpressionSet[] params)
+			throws SemanticException {
+		if (!hasReceiver || params.length < 2 || getSubExpressions().length < 2)
+			return false;
+		boolean any = false;
+		for (SymbolicExpression receiver : params[1]) {
+			Set<Type> types = interprocedural.getAnalysis().getRuntimeTypesOf(state, receiver, this);
+			if (types.isEmpty() || !types.stream().allMatch(PyModuleType.class::isInstance))
+				return false;
+			any = true;
+		}
+		return any;
+	}
+
 	@Override
 	public <A extends AbstractLattice<A>, D extends AbstractDomain<A>> AnalysisState<A> forwardSemanticsAux(
 			InterproceduralAnalysis<A, D> interprocedural,
@@ -132,6 +166,9 @@ public class FunctionApply extends NaryExpression {
 			throws SemanticException {
 		AnalysisState<A> result = state.bottomExecution();
 		boolean anyTypeFound = false;
+		// in m.f(x) with m a module, f is a function of the module: m is how
+		// it is reached, not an argument
+		int firstArgument = receiverIsModule(interprocedural, state, params) ? 2 : 1;
 		org.apache.logging.log4j.LogManager.getLogger(FunctionApply.class).debug(
 				"forwardSemanticsAux: this id={} subexpr={}", System.identityHashCode(this),
 				java.util.Arrays.asList(getSubExpressions()).stream().map(e -> e + "/" + System.identityHashCode(e))
@@ -248,7 +285,7 @@ public class FunctionApply extends NaryExpression {
 					if (cm instanceof NativeCFG cfg) {
 						c = new NativeCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
 								List.of(cfg),
-								Arrays.copyOfRange(getSubExpressions(), 1, getSubExpressions().length));
+								Arrays.copyOfRange(getSubExpressions(), firstArgument, getSubExpressions().length));
 						org.apache.logging.log4j.LogManager.getLogger(FunctionApply.class).debug(
 								"NativeCall built: this(FA)id={} subexpr[1]={} id={}, NativeCFG={}",
 								System.identityHashCode(this),
@@ -259,7 +296,7 @@ public class FunctionApply extends NaryExpression {
 					} else if (cm instanceof CFG cfg) {
 						c = new CFGCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
 								List.of(cfg),
-								Arrays.copyOfRange(getSubExpressions(), 1, getSubExpressions().length));
+								Arrays.copyOfRange(getSubExpressions(), firstArgument, getSubExpressions().length));
 					}
 					if (c != null) {
 						// Link the synthetic call to its emitting

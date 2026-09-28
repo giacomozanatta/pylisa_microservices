@@ -7,20 +7,25 @@ import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.lattices.FunctionalLattice;
 import it.unive.lisa.lattices.SimpleAbstractState;
+import it.unive.lisa.lattices.heap.allocations.AllocationSite;
 import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.heap.AccessChild;
 import it.unive.lisa.symbolic.heap.HeapDereference;
+import it.unive.lisa.symbolic.heap.HeapReference;
 import it.unive.lisa.symbolic.value.Constant;
 import it.unive.lisa.symbolic.value.HeapLocation;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.OutOfScopeIdentifier;
 import it.unive.lisa.symbolic.value.Variable;
+import it.unive.lisa.type.ReferenceType;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -144,6 +149,27 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 				.filter(HeapLocation.class::isInstance)
 				.map(HeapLocation.class::cast)
 				.collect(Collectors.toCollection(LinkedHashSet::new));
+	}
+
+	/**
+	 * Yields the abstract objects of the given type that exist in this state,
+	 * each with a reference that points to it.
+	 *
+	 * @param typeName the name of the type, such as
+	 *                     {@code rclpy.publisher.Publisher}
+	 *
+	 * @return the references to the objects, by heap location
+	 */
+	Map<HeapLocation, SymbolicExpression> objectsOfType(
+			String typeName) {
+		Map<HeapLocation, SymbolicExpression> objects = new LinkedHashMap<>();
+		for (Identifier id : inScopeIdentifiers())
+			if (id instanceof AllocationSite site && site.getField() == null)
+				for (Type type : typesOf(site))
+					if (type.toString().equals(typeName))
+						objects.put(site,
+								new HeapReference(new ReferenceType(type), site, SyntheticLocation.INSTANCE));
+		return objects;
 	}
 
 	/**

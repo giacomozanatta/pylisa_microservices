@@ -1,2 +1,16 @@
 # Native class of each modelled rclpy callable, as "<module>[.<Class>].<callable> <native class>".
 # Callables not listed return an unknown value and have no other effect.
+rclpy.init it.unive.pylisa.libraries.rclpy.RclpyInit
+rclpy.shutdown it.unive.pylisa.libraries.rclpy.RclpyShutdown
+rclpy.try_shutdown it.unive.pylisa.libraries.rclpy.RclpyShutdown
+rclpy.ok it.unive.pylisa.libraries.rclpy.RclpyOk
+rclpy.create_node it.unive.pylisa.libraries.rclpy.CreateNode
+rclpy.node.Node.__init__ it.unive.pylisa.libraries.rclpy.NodeInit
+rclpy.node.Node.get_name it.unive.pylisa.libraries.rclpy.GetName
+rclpy.node.Node.get_namespace it.unive.pylisa.libraries.rclpy.GetNamespace
+rclpy.node.Node.get_fully_qualified_name it.unive.pylisa.libraries.rclpy.GetFullyQualifiedName
+rclpy.spin it.unive.pylisa.libraries.rclpy.Spin
+rclpy.spin_once it.unive.pylisa.libraries.rclpy.SpinOnce
+rclpy.spin_until_future_complete it.unive.pylisa.libraries.rclpy.SpinUntilFutureComplete
+rclpy.get_global_executor it.unive.pylisa.libraries.rclpy.GetGlobalExecutor
+rclpy.executors.Executor.add_node it.unive.pylisa.libraries.rclpy.AddNode

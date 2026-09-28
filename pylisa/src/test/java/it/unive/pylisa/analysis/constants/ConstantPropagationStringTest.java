@@ -100,6 +100,12 @@ class ConstantPropagationStringTest {
 		assertEquals(Satisfiability.SATISFIED, DOMAIN.satisfiesAbstractValue(bool(true), null, null));
 		assertEquals(Satisfiability.NOT_SATISFIED, DOMAIN.satisfiesAbstractValue(bool(false), null, null));
 		assertEquals(Satisfiability.UNKNOWN, DOMAIN.satisfiesAbstractValue(TOP, null, null));
+		assertEquals(Satisfiability.SATISFIED,
+				DOMAIN.satisfiesConstant(constant(BoolType.INSTANCE, true), null, null));
+		assertEquals(Satisfiability.NOT_SATISFIED,
+				DOMAIN.satisfiesConstant(constant(BoolType.INSTANCE, false), null, null));
+		assertEquals(Satisfiability.UNKNOWN,
+				DOMAIN.satisfiesConstant(constant(StringType.INSTANCE, "a"), null, null));
 	}
 
 	@Test
