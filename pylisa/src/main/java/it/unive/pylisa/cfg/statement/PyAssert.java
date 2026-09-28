@@ -14,6 +14,7 @@ import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.cfg.statement.UnaryStatement;
 import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.lisa.symbolic.value.Skip;
 import it.unive.lisa.symbolic.value.UnaryExpression;
 import it.unive.lisa.symbolic.value.operator.unary.LogicalNegation;
 import it.unive.pylisa.cfg.type.PyExceptionType;
@@ -74,8 +75,12 @@ public class PyAssert extends UnaryStatement {
 		UnaryExpression negated = new UnaryExpression(BoolType.INSTANCE, condition, LogicalNegation.INSTANCE,
 				getLocation());
 		AnalysisState<A> failed = analysis.assume(state, negated, this, this);
-		AnalysisState<A> raised = analysis.moveExecutionToError(failed,
+		// a statement has no value: the condition, which may mention
+		// temporaries of the enclosing function, is not left behind, neither
+		// on the normal path nor on the error one
+		Skip none = new Skip(getLocation());
+		AnalysisState<A> raised = analysis.moveExecutionToError(analysis.smallStepSemantics(failed, none, this),
 				new AnalysisState.Error(PyExceptionType.ASSERTION_ERROR, this), this);
-		return passed.lub(raised);
+		return analysis.smallStepSemantics(passed, none, this).lub(raised);
 	}
 }

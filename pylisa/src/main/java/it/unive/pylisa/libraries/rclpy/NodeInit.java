@@ -28,6 +28,12 @@ public class NodeInit extends RosNative {
 
 	private static final int START_PARAMETER_SERVICES = 7;
 
+	private static final int PARAMETER_OVERRIDES = 8;
+
+	private static final int ALLOW_UNDECLARED_PARAMETERS = 9;
+
+	private static final int DECLARE_PARAMETERS_FROM_OVERRIDES = 10;
+
 	/**
 	 * Builds the model of one call.
 	 *
@@ -64,10 +70,15 @@ public class NodeInit extends RosNative {
 			ModelState<A, D> state,
 			ExpressionSet[] arguments)
 			throws SemanticException {
+		Expressions build = new Expressions(callSite());
 		return state.forEachCombination(
 				List.of(arguments[SELF], arguments[NODE_NAME], arguments[NAMESPACE], arguments[CONTEXT],
-						arguments[START_PARAMETER_SERVICES]),
-				(current, values) -> NodeModel.initialize(current, callSite(), values.get(0), values.get(1),
-						values.get(2), values.get(3), values.get(4)));
+						arguments[START_PARAMETER_SERVICES], arguments[PARAMETER_OVERRIDES],
+						arguments[ALLOW_UNDECLARED_PARAMETERS], arguments[DECLARE_PARAMETERS_FROM_OVERRIDES]),
+				(current, values) -> ParameterModels.initialize(
+						NodeModel.initialize(current, callSite(), values.get(0), values.get(1), values.get(2),
+								values.get(3), values.get(4)),
+						build, values.get(0), values.get(5), values.get(6), values.get(7))
+						.returning(build.none()));
 	}
 }

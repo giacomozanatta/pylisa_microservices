@@ -55,7 +55,7 @@ final class ExecutorModel {
 			throws SemanticException {
 		Expressions build = new Expressions(site);
 		GlobalVariable global = new GlobalVariable(Untyped.INSTANCE, GLOBAL_EXECUTOR, site);
-		return state.branch(build.isNone(global),
+		return state.ifNone(global,
 				(missing, condition) -> EntityModels.create(missing, SINGLE_THREADED,
 						new TaggedLocation(site, "global-executor"),
 						(created, executor) -> created.assign(global, executor).returning(executor)),
@@ -84,7 +84,7 @@ final class ExecutorModel {
 			SymbolicExpression executor)
 			throws SemanticException {
 		Expressions build = new Expressions(site);
-		return state.branch(build.isNone(executor),
+		return state.ifNone(executor,
 				(implicit, condition) -> {
 					ModelState<A, D> global = globalExecutor(implicit, site);
 					return global.forEach(global.values(), (current, found) -> current.write(node, EXECUTOR, found));

@@ -23,3 +23,13 @@ rclpy.node.Node.create_guard_condition it.unive.pylisa.libraries.rclpy.CreateGua
 rclpy.node.Node.resolve_topic_name it.unive.pylisa.libraries.rclpy.ResolveTopicName
 rclpy.node.Node.resolve_service_name it.unive.pylisa.libraries.rclpy.ResolveServiceName
 rclpy.client.Client.call_async it.unive.pylisa.libraries.rclpy.CallAsync
+rclpy.node.Node.declare_parameter it.unive.pylisa.libraries.rclpy.DeclareParameter
+rclpy.node.Node.declare_parameters it.unive.pylisa.libraries.rclpy.ChangeParameters
+rclpy.node.Node.set_parameters it.unive.pylisa.libraries.rclpy.ChangeParameters
+rclpy.node.Node.set_parameters_atomically it.unive.pylisa.libraries.rclpy.ChangeParameters
+rclpy.node.Node.get_parameter it.unive.pylisa.libraries.rclpy.GetParameter
+rclpy.node.Node.get_parameter_or it.unive.pylisa.libraries.rclpy.GetParameterOr
+rclpy.node.Node.has_parameter it.unive.pylisa.libraries.rclpy.HasParameter
+rclpy.node.Node.undeclare_parameter it.unive.pylisa.libraries.rclpy.UndeclareParameter
+rclpy.parameter.Parameter.__init__ it.unive.pylisa.libraries.rclpy.ParameterInit
+rclpy.node.Node.set_descriptor it.unive.pylisa.libraries.rclpy.ChangeParameters

@@ -39,7 +39,7 @@ final class ContextModel {
 			SymbolicExpression context)
 			throws SemanticException {
 		Expressions build = new Expressions(site);
-		return state.branch(build.isNone(context),
+		return state.ifNone(context,
 				(implicit, condition) -> EntityModels.create(implicit, RosTypes.CONTEXT, site,
 						(created, fresh) -> created
 								.write(fresh, NodeModel.CONTEXT_OK, build.bool(true))
@@ -103,7 +103,7 @@ final class ContextModel {
 			SymbolicExpression context,
 			ModelState.Step<A, D, SymbolicExpression> action)
 			throws SemanticException {
-		return state.branch(build.isNone(context),
+		return state.ifNone(context,
 				(implicit, condition) -> action.apply(implicit, NodeModel.defaultContext(build)),
 				(explicit, condition) -> action.apply(explicit, context));
 	}

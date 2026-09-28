@@ -209,7 +209,7 @@ final class NodeModel {
 			ModelState.Step<A, D, SymbolicExpression> initialized)
 			throws SemanticException {
 		SymbolicExpression defaultContext = defaultContext(build);
-		return state.branch(build.isNone(context),
+		return state.ifNone(context,
 				(implicit, condition) -> requireOk(implicit, defaultContext, initialized),
 				(explicit, condition) -> requireOk(explicit, context, initialized));
 	}

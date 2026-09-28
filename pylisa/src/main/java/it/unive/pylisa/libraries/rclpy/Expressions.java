@@ -93,6 +93,31 @@ final class Expressions {
 	}
 
 	/**
+	 * Yields the constant of a Python value given as a Java object: a string,
+	 * a boolean, an integer or a float.
+	 *
+	 * @param value the value
+	 *
+	 * @return the constant
+	 *
+	 * @throws IllegalArgumentException if the value is of another kind
+	 */
+	SymbolicExpression constant(
+			Object value) {
+		if (value instanceof String)
+			return new Constant(StringType.INSTANCE, value, location);
+		if (value instanceof Boolean)
+			return new Constant(BoolType.INSTANCE, value, location);
+		if (value instanceof Integer)
+			return new Constant(Int32Type.INSTANCE, value, location);
+		if (value instanceof Long)
+			return new Constant(Int64Type.INSTANCE, value, location);
+		if (value instanceof Double)
+			return new Constant(Float64Type.INSTANCE, value, location);
+		throw new IllegalArgumentException("Not a Python constant: " + value);
+	}
+
+	/**
 	 * Yields a float constant.
 	 *
 	 * @param value the float

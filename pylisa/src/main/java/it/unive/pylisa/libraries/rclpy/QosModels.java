@@ -84,7 +84,7 @@ final class QosModels {
 			SymbolicExpression profile,
 			ModelState.Step<A, D, SymbolicExpression> withProfile)
 			throws SemanticException {
-		return state.branch(build.isNone(profile),
+		return state.ifNone(profile,
 				(byDefault, condition) -> withProfile.apply(byDefault, build.unknown()),
 				(given, condition) -> withProfile.apply(given, profile));
 	}

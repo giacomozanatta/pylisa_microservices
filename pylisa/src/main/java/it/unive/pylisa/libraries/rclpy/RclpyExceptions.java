@@ -58,6 +58,32 @@ public final class RclpyExceptions {
 			.subclass("rclpy.exceptions.ParameterNotDeclaredException", PARAMETER);
 
 	/**
+	 * Raised when a parameter is declared twice.
+	 */
+	public static final PyExceptionType PARAMETER_ALREADY_DECLARED = PyExceptionType
+			.subclass("rclpy.exceptions.ParameterAlreadyDeclaredException", PARAMETER);
+
+	/**
+	 * Raised when a parameter gets a value of a type other than the one it was
+	 * declared with.
+	 */
+	public static final PyExceptionType INVALID_PARAMETER_TYPE = PyExceptionType
+			.subclass("rclpy.exceptions.InvalidParameterTypeException", PARAMETER);
+
+	/**
+	 * Raised when a read-only parameter is changed or undeclared.
+	 */
+	public static final PyExceptionType PARAMETER_IMMUTABLE = PyExceptionType
+			.subclass("rclpy.exceptions.ParameterImmutableException", PARAMETER);
+
+	/**
+	 * Raised when a parameter declared with only its type is read before it
+	 * gets a value.
+	 */
+	public static final PyExceptionType PARAMETER_UNINITIALIZED = PyExceptionType
+			.subclass("rclpy.exceptions.ParameterUninitializedException", PARAMETER);
+
+	/**
 	 * Raised when a destroyed entity, such as a destroyed node, is used.
 	 */
 	public static final PyExceptionType INVALID_HANDLE = PyExceptionType

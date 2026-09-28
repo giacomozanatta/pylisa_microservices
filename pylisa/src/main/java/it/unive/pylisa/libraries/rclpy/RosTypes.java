@@ -55,6 +55,11 @@ final class RosTypes {
 	 */
 	static final String FUTURE = "rclpy.task.Future";
 
+	/**
+	 * {@code rclpy.parameter.Parameter}.
+	 */
+	static final String PARAMETER = "rclpy.parameter.Parameter";
+
 	private RosTypes() {
 	}
 

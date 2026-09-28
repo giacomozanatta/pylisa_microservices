@@ -16,7 +16,11 @@ import it.unive.lisa.symbolic.heap.AccessChild;
 import it.unive.lisa.symbolic.heap.HeapDereference;
 import it.unive.lisa.symbolic.heap.HeapReference;
 import it.unive.lisa.symbolic.heap.MemoryAllocation;
+import it.unive.lisa.symbolic.value.BinaryExpression;
 import it.unive.lisa.symbolic.value.Identifier;
+import it.unive.lisa.symbolic.value.operator.binary.ComparisonEq;
+import it.unive.pylisa.symbolic.PyNoneConstant;
+import it.unive.lisa.symbolic.value.Skip;
 import it.unive.lisa.symbolic.value.UnaryExpression;
 import it.unive.lisa.symbolic.value.Variable;
 import it.unive.lisa.symbolic.value.operator.unary.LogicalNegation;
@@ -24,7 +28,9 @@ import it.unive.lisa.type.ReferenceType;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyExceptionType;
+import it.unive.lisa.symbolic.value.HeapLocation;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -372,6 +378,39 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	}
 
 	/**
+	 * Splits the executions of this state on whether a value is
+	 * {@code None}. The types the value may have decide first, since the
+	 * value domains may not track references; where they do not decide, the
+	 * comparison with {@code None} does.
+	 *
+	 * @param value     the value
+	 * @param whenNone  the step for the executions where it is {@code None}
+	 * @param otherwise the step for the executions where it is not
+	 *
+	 * @return the join of the outcomes
+	 *
+	 * @throws SemanticException if the value cannot be evaluated or a step
+	 *                               fails
+	 */
+	public ModelState<A, D> ifNone(
+			SymbolicExpression value,
+			Step<A, D, SymbolicExpression> whenNone,
+			Step<A, D, SymbolicExpression> otherwise)
+			throws SemanticException {
+		Set<Type> types = runtimeTypes(value);
+		if (!types.isEmpty() && types.stream().allMatch(Type::isNullType))
+			return whenNone.apply(this, value);
+		// only types that certainly exclude None decide: references and
+		// plain values, not unknown or missing type information
+		if (!types.isEmpty() && types.stream().allMatch(t -> t.isPointerType() || t.isStringType()
+				|| t.isNumericType() || t.isBooleanType()))
+			return otherwise.apply(this, value);
+		CodeLocation location = call.getLocation();
+		return branch(new BinaryExpression(BoolType.INSTANCE, value, new PyNoneConstant(location),
+				ComparisonEq.INSTANCE, location), whenNone, otherwise);
+	}
+
+	/**
 	 * Decides a condition in this state.
 	 *
 	 * @param condition the condition
@@ -384,6 +423,28 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			SymbolicExpression condition)
 			throws SemanticException {
 		return analysis.satisfies(state, condition, point);
+	}
+
+	/**
+	 * Yields the abstract objects a reference may point to, by the name of
+	 * their heap location. A reference that points to no object (such as
+	 * {@code None}) yields no name.
+	 *
+	 * @param reference the reference
+	 *
+	 * @return the names of the heap locations
+	 *
+	 * @throws SemanticException if the reference cannot be resolved
+	 */
+	public Set<String> objects(
+			SymbolicExpression reference)
+			throws SemanticException {
+		Set<String> names = new HashSet<>();
+		HeapDereference target = new HeapDereference(Untyped.INSTANCE, reference, call.getLocation());
+		for (SymbolicExpression location : analysis.rewrite(state, target, point))
+			if (location instanceof HeapLocation)
+				names.add(((HeapLocation) location).getName());
+		return names;
 	}
 
 	/**
@@ -414,7 +475,10 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	public ModelState<A, D> raise(
 			PyExceptionType type)
 			throws SemanticException {
-		return with(analysis.moveExecutionToError(state, new AnalysisState.Error(type, call), point));
+		// the values computed so far are not the value of anything once the
+		// call raises
+		AnalysisState<A> cleared = analysis.smallStepSemantics(state, new Skip(call.getLocation()), point);
+		return with(analysis.moveExecutionToError(cleared, new AnalysisState.Error(type, call), point));
 	}
 
 	/**
