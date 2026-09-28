@@ -8,6 +8,7 @@ import it.unive.lisa.symbolic.heap.HeapDereference;
 import it.unive.lisa.symbolic.value.HeapLocation;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -74,6 +75,18 @@ public final class Obj {
 			String name) {
 		return view.valueOf(StateView.field(reference, name))
 				.orElseGet(() -> fail("Field " + name + " of " + this + " has no value"));
+	}
+
+	/**
+	 * Yields the value of a field of this object, if the field has one here.
+	 *
+	 * @param name the field name
+	 *
+	 * @return the value, or empty if the field is not set at this point
+	 */
+	public Optional<Val> fieldIfSet(
+			String name) {
+		return view.valueOf(StateView.field(reference, name));
 	}
 
 	/**

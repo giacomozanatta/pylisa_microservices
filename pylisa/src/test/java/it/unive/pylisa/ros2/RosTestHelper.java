@@ -22,6 +22,7 @@ import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -170,6 +171,21 @@ public final class RosTestHelper {
 		return results.after(statement, config.reader())
 				.map(Point::of)
 				.orElseGet(() -> Point.unanalysed("after " + statement + " at " + statement.getLocation()));
+	}
+
+	/**
+	 * Yields the state after every analysed statement, in every file of the
+	 * program, joined over contexts. Statements that no execution reaches are
+	 * left out.
+	 *
+	 * @return the states
+	 */
+	public List<Point> everyPoint() {
+		return results.statements().stream()
+				.map(statement -> results.after(statement, config.reader()).map(Point::of))
+				.flatMap(Optional::stream)
+				.filter(Point::isReachable)
+				.collect(Collectors.toList());
 	}
 
 	/**

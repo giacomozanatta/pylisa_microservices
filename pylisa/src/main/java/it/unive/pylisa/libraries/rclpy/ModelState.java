@@ -525,6 +525,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	public ModelState<A, D> raise(
 			PyExceptionType type)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here, so none raises
+			return this;
 		// the values computed so far are not the value of anything once the
 		// call raises
 		AnalysisState<A> cleared = analysis.smallStepSemantics(state, new Skip(call.getLocation()), point);

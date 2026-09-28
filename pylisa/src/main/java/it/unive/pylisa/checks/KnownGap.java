@@ -119,6 +119,13 @@ public enum KnownGap {
 	EXPLICIT_NONE_AS_DEFAULT("an explicit None for a library parameter with a non-literal default is taken as the default"),
 
 	/**
+	 * A call that cannot return normally, because every execution of it
+	 * raises, is continued with an unknown result, so the code after it is
+	 * analysed as reachable.
+	 */
+	RAISING_CALLS_CONTINUE("the code after a call that always raises is analysed as reachable, with an unknown result"),
+
+	/**
 	 * Numbers are plain values, not objects: arithmetic and comparisons on
 	 * them follow Python's rules for {@code int}, {@code bool} and
 	 * {@code float} but never dispatch to {@code __add__}, {@code __lt__} and
