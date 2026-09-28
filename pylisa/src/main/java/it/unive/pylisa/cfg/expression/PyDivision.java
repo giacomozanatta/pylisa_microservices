@@ -42,6 +42,6 @@ public class PyDivision extends Division {
 			SymbolicExpression right,
 			StatementStore<A> expressions)
 			throws SemanticException {
-		return NumericOperands.apply(interprocedural, state, left, right, PythonArithmetic.Div.INSTANCE, this);
+		return NumericOperands.apply(interprocedural, state, left, right, PythonArithmetic.Div.INSTANCE, true, this);
 	}
 }

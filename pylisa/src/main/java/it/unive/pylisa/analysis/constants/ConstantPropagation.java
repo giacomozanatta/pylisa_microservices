@@ -542,9 +542,11 @@ public class ConstantPropagation
 			ConstantPropagation value,
 			ProgramPoint pp,
 			SemanticOracle oracle) {
-		if (value.isTop() || value.isBottom() || !(value.constant.getValue() instanceof Boolean))
+		if (value.isTop() || value.isBottom())
 			return Satisfiability.UNKNOWN;
-		return satisfiability((Boolean) value.constant.getValue());
+		return ConstantOperations.truthiness(value.constant)
+				.map(ConstantPropagation::satisfiability)
+				.orElse(Satisfiability.UNKNOWN);
 	}
 
 	@Override
@@ -552,9 +554,9 @@ public class ConstantPropagation
 			Constant constant,
 			ProgramPoint pp,
 			SemanticOracle oracle) {
-		if (!(constant.getValue() instanceof Boolean))
-			return Satisfiability.UNKNOWN;
-		return satisfiability((Boolean) constant.getValue());
+		return ConstantOperations.truthiness(constant)
+				.map(ConstantPropagation::satisfiability)
+				.orElse(Satisfiability.UNKNOWN);
 	}
 
 	@Override

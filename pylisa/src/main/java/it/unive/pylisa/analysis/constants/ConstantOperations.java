@@ -186,6 +186,32 @@ final class ConstantOperations {
 		}
 	}
 
+	/**
+	 * Decides whether a constant is true in a condition, as Python's
+	 * {@code bool()} does: {@code False}, {@code None}, zero and the empty
+	 * string are false; other booleans, numbers (not-a-number included) and
+	 * strings are true.
+	 *
+	 * @param constant the constant
+	 *
+	 * @return its truth value, or empty for constants of other kinds
+	 */
+	static Optional<Boolean> truthiness(
+			Constant constant) {
+		if (constant instanceof PyNoneConstant || constant.getStaticType().isNullType())
+			return Optional.of(false);
+		Object value = constant.getValue();
+		if (value instanceof Boolean)
+			return Optional.of((Boolean) value);
+		if (value instanceof String)
+			return Optional.of(!((String) value).isEmpty());
+		if (value instanceof Double || value instanceof Float)
+			return Optional.of(((Number) value).doubleValue() != 0d);
+		if (value instanceof Number)
+			return Optional.of(((Number) value).longValue() != 0L);
+		return Optional.empty();
+	}
+
 	private static Kind kindOf(
 			Constant constant) {
 		if (constant instanceof PyNoneConstant || constant.getStaticType().isNullType())

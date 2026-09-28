@@ -71,6 +71,12 @@ public final class PyExceptionType implements Type {
 	 */
 	public static final PyExceptionType OVERFLOW_ERROR = subclass("builtins.OverflowError", ARITHMETIC_ERROR);
 
+	/**
+	 * {@code ZeroDivisionError}, raised by a division or a remainder by zero.
+	 */
+	public static final PyExceptionType ZERO_DIVISION_ERROR = subclass("builtins.ZeroDivisionError",
+			ARITHMETIC_ERROR);
+
 	private final String name;
 
 	private final PyExceptionType superclass;

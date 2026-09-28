@@ -2,11 +2,12 @@ package it.unive.pylisa.frontend.expression;
 
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CFG;
-import it.unive.lisa.program.type.BoolType;
-import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.literal.Int32Literal;
-import it.unive.pylisa.cfg.expression.PyNot;
+import it.unive.lisa.program.type.BoolType;
+import it.unive.lisa.symbolic.value.operator.binary.BinaryOperator;
+import it.unive.lisa.symbolic.value.operator.binary.ComparisonEq;
+import it.unive.lisa.symbolic.value.operator.binary.ComparisonNe;
 import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.AddContext;
 import it.unive.pylisa.antlr.Python3Parser.And_exprContext;
@@ -30,23 +31,25 @@ import it.unive.pylisa.antlr.Python3Parser.Right_shiftContext;
 import it.unive.pylisa.antlr.Python3Parser.TermContext;
 import it.unive.pylisa.antlr.Python3Parser.Xor_exprContext;
 import it.unive.pylisa.cfg.expression.PyAddition;
-import it.unive.pylisa.cfg.expression.PyDivision;
-import it.unive.pylisa.cfg.expression.PySubtraction;
-import org.antlr.v4.runtime.ParserRuleContext;
 import it.unive.pylisa.cfg.expression.PyBitwiseAnd;
 import it.unive.pylisa.cfg.expression.PyBitwiseLeftShift;
 import it.unive.pylisa.cfg.expression.PyBitwiseNot;
 import it.unive.pylisa.cfg.expression.PyBitwiseOr;
 import it.unive.pylisa.cfg.expression.PyBitwiseRIghtShift;
 import it.unive.pylisa.cfg.expression.PyBitwiseXor;
+import it.unive.pylisa.cfg.expression.PyDivision;
 import it.unive.pylisa.cfg.expression.PyFloorDiv;
 import it.unive.pylisa.cfg.expression.PyIn;
 import it.unive.pylisa.cfg.expression.PyIs;
 import it.unive.pylisa.cfg.expression.PyMatMul;
 import it.unive.pylisa.cfg.expression.PyMultiplication;
+import it.unive.pylisa.cfg.expression.PyNot;
 import it.unive.pylisa.cfg.expression.PyPower;
 import it.unive.pylisa.cfg.expression.PyRemainder;
+import it.unive.pylisa.cfg.expression.PySubtraction;
+import it.unive.pylisa.cfg.expression.PyUnaryArithmetic;
 import it.unive.pylisa.cfg.expression.comparison.PyAnd;
+import it.unive.pylisa.cfg.expression.comparison.PyComparisonChain;
 import it.unive.pylisa.cfg.expression.comparison.PyEquals;
 import it.unive.pylisa.cfg.expression.comparison.PyGreaterOrEqual;
 import it.unive.pylisa.cfg.expression.comparison.PyGreaterThan;
@@ -54,9 +57,16 @@ import it.unive.pylisa.cfg.expression.comparison.PyLessOrEqual;
 import it.unive.pylisa.cfg.expression.comparison.PyLessThan;
 import it.unive.pylisa.cfg.expression.comparison.PyNotEqual;
 import it.unive.pylisa.cfg.expression.comparison.PyOr;
+import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
 import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
+import it.unive.pylisa.symbolic.operators.compare.PyComparisonGe;
+import it.unive.pylisa.symbolic.operators.compare.PyComparisonGt;
+import it.unive.pylisa.symbolic.operators.compare.PyComparisonLe;
+import it.unive.pylisa.symbolic.operators.compare.PyComparisonLt;
+import java.util.Arrays;
 import java.util.Objects;
+import org.antlr.v4.runtime.ParserRuleContext;
 
 /**
  * Handles binary and unary operators: logical, comparison, bitwise, shift,
@@ -120,6 +130,16 @@ public final class BinaryOpVisitor {
 		Expression first = buildSingleComparison(pctx, pctx.comp_op(0), support.getLocation(pctx));
 		if (pctx.comp_op().size() == 1)
 			return first;
+		BinaryOperator[] operators = new BinaryOperator[pctx.comp_op().size()];
+		for (int i = 0; i < operators.length; i++)
+			operators[i] = orderingOrEquality(pctx.comp_op(i));
+		if (Arrays.stream(operators).allMatch(Objects::nonNull)) {
+			Expression[] operands = new Expression[pctx.expr().size()];
+			for (int i = 0; i < operands.length; i++)
+				operands[i] = visitExpr(pctx.expr(i));
+			return new PyComparisonChain(ctx.currentCFG(), support.getLocation(pctx.comp_op(0)), operands,
+					operators);
+		}
 		// a chain a < b < c holds when every comparison does, and each
 		// operand is evaluated once; the comparisons after the first are not
 		// built (their operands would be evaluated twice), so the chain is the
@@ -127,6 +147,27 @@ public final class BinaryOpVisitor {
 		SourceCodeLocation rest = support.getLocation(pctx.comp_op(1));
 		return new PyAnd(ctx.currentCFG(), support.getLocation(pctx.comp_op(0)), first,
 				new PyUnknownLiteral(ctx.currentCFG(), rest, pctx.getText(), BoolType.INSTANCE));
+	}
+
+	/**
+	 * Yields the operator of an ordering or equality comparison, or
+	 * {@code null} for membership and identity tests.
+	 */
+	private static BinaryOperator orderingOrEquality(
+			Comp_opContext op) {
+		if (op.EQUALS() != null)
+			return ComparisonEq.INSTANCE;
+		if (op.NOT_EQ_1() != null || op.NOT_EQ_2() != null)
+			return ComparisonNe.INSTANCE;
+		if (op.LESS_THAN() != null)
+			return PyComparisonLt.INSTANCE;
+		if (op.LT_EQ() != null)
+			return PyComparisonLe.INSTANCE;
+		if (op.GREATER_THAN() != null)
+			return PyComparisonGt.INSTANCE;
+		if (op.GT_EQ() != null)
+			return PyComparisonGe.INSTANCE;
+		return null;
 	}
 
 	private Expression buildSingleComparison(
@@ -379,10 +420,8 @@ public final class BinaryOpVisitor {
 			return new PyBitwiseNot(ctx.currentCFG(), support.getLocation(pctx),
 					visitFactor(pctx.factor()));
 		if (pctx.MINUS() != null)
-			return new PyMultiplication(ctx.currentCFG(), support.getLocation(pctx),
-					new Int32Literal(ctx.currentCFG(), support.getLocation(pctx), -1),
-					visitFactor(pctx.factor()));
-		return visitFactor(pctx.factor());
+			return new PyUnaryArithmetic(ctx.currentCFG(), support.getLocation(pctx), visitFactor(pctx.factor()), true);
+		return new PyUnaryArithmetic(ctx.currentCFG(), support.getLocation(pctx), visitFactor(pctx.factor()), false);
 	}
 
 	public Expression visitPower(

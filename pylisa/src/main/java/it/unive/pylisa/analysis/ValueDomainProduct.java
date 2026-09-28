@@ -166,6 +166,9 @@ public class ValueDomainProduct<L1 extends ValueLattice<L1>, L2 extends ValueLat
 			return second;
 		if (second == Satisfiability.UNKNOWN || first == second)
 			return first;
-		return Satisfiability.BOTTOM;
+		// the components contradict each other: rather than concluding that
+		// no execution gets here, which an imprecise component could cause,
+		// nothing is decided
+		return Satisfiability.UNKNOWN;
 	}
 }

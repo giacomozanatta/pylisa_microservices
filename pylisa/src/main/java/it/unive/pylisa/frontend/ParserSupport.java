@@ -4,6 +4,7 @@ import it.unive.lisa.program.ClassUnit;
 import it.unive.lisa.program.CompilationUnit;
 import it.unive.lisa.program.Global;
 import it.unive.lisa.program.SourceCodeLocation;
+import it.unive.lisa.program.annotations.Annotation;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.lisa.program.cfg.VariableTableEntry;
@@ -47,6 +48,13 @@ import org.apache.logging.log4j.Logger;
  * owns the called method.
  */
 public final class ParserSupport {
+
+	/**
+	 * The annotation of a function (or module body) part of which the
+	 * frontend translated unsoundly: its analysis may miss executions of the
+	 * program.
+	 */
+	public static final String UNSOUND_TRANSLATION = "pylisa.unsound-translation";
 
 	private static final Logger LOG = LogManager.getLogger(ParserSupport.class);
 
@@ -137,6 +145,10 @@ public final class ParserSupport {
 			ParserRuleContext pctx,
 			String description) {
 		SourceCodeLocation loc = getLocation(pctx);
+		// the function being translated no longer describes the program
+		// faithfully: analyses reading its results must know it
+		if (ctx.currentCFG() != null)
+			ctx.currentCFG().getDescriptor().addAnnotation(new Annotation(UNSOUND_TRANSLATION));
 		ctx.reporter().report(
 				DiagnosticReporter.Severity.UNSOUND,
 				loc,

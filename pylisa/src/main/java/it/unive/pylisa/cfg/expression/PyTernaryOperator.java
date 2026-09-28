@@ -8,6 +8,7 @@ import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.Statement;
+import it.unive.lisa.lattices.Satisfiability;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.UnaryExpression;
 import it.unive.lisa.symbolic.value.operator.unary.LogicalNegation;
@@ -48,8 +49,12 @@ public class PyTernaryOperator extends NaryExpression {
 		Expression ifFalse = sub[2];
 
 		AnalysisState<A> postCondition = condition.forwardSemantics(entryState, interprocedural, expressions);
+		// Python evaluates only the branch the condition selects: each branch
+		// is evaluated where the condition may select it, and the outcomes are
+		// joined
+		AnalysisState<A> result = entryState.bottomExecution();
 		for (SymbolicExpression cond : interprocedural.getAnalysis().rewrite(
-				entryState,
+				postCondition,
 				postCondition.getExecution().getComputedExpressions(),
 				this)) {
 			UnaryExpression negated = new UnaryExpression(
@@ -57,34 +62,19 @@ public class PyTernaryOperator extends NaryExpression {
 					cond,
 					LogicalNegation.INSTANCE,
 					cond.getCodeLocation());
-
-			switch (interprocedural.getAnalysis().satisfies(postCondition, cond, this)) {
-			case BOTTOM:
-				return entryState.bottom();
-			case NOT_SATISFIED:
-				return ifFalse.forwardSemantics(
+			Satisfiability selected = interprocedural.getAnalysis().satisfies(postCondition, cond, this);
+			if (selected != Satisfiability.NOT_SATISFIED && selected != Satisfiability.BOTTOM)
+				result = result.lub(ifTrue.forwardSemantics(
 						interprocedural.getAnalysis().assume(postCondition, cond, condition, ifTrue),
 						interprocedural,
-						expressions);
-			case SATISFIED:
-				return ifTrue.forwardSemantics(
+						expressions));
+			if (selected != Satisfiability.SATISFIED && selected != Satisfiability.BOTTOM)
+				result = result.lub(ifFalse.forwardSemantics(
 						interprocedural.getAnalysis().assume(postCondition, negated, condition, ifFalse),
 						interprocedural,
-						expressions);
-			case UNKNOWN:
-				return ifTrue
-						.forwardSemantics(
-								interprocedural.getAnalysis().assume(postCondition, cond, condition, ifTrue),
-								interprocedural,
-								expressions)
-						.lub(ifFalse.forwardSemantics(
-								interprocedural.getAnalysis().assume(postCondition, negated, condition, ifFalse),
-								interprocedural,
-								expressions));
-			}
+						expressions));
 		}
-
-		return entryState.top();
+		return result;
 	}
 
 	@Override

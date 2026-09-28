@@ -27,7 +27,14 @@ public enum AssertionVerdict {
 	/**
 	 * No execution reaches the assertion, so nothing was checked.
 	 */
-	UNREACHABLE;
+	UNREACHABLE,
+
+	/**
+	 * The function holding the assertion was not analysed at all (for
+	 * instance, a callback that no analysed code runs), so nothing is known
+	 * about it.
+	 */
+	NOT_ANALYSED;
 
 	/**
 	 * Yields the verdict for one analysis context from the satisfiability of
@@ -45,10 +52,23 @@ public enum AssertionVerdict {
 		case NOT_SATISFIED:
 			return FAILS;
 		case BOTTOM:
-			return UNREACHABLE;
+			// a reachable state in which the condition has no value: the
+			// domains could not evaluate it, which decides nothing
+			return MAY_FAIL;
 		default:
 			return MAY_FAIL;
 		}
+	}
+
+	/**
+	 * Yields the verdict once the analysis may have misrepresented some
+	 * executions (because the frontend translated part of the program
+	 * unsoundly): only the verdict that decides nothing survives.
+	 *
+	 * @return the verdict
+	 */
+	AssertionVerdict unreliable() {
+		return this == NOT_ANALYSED ? NOT_ANALYSED : MAY_FAIL;
 	}
 
 	/**
@@ -63,6 +83,8 @@ public enum AssertionVerdict {
 	 */
 	AssertionVerdict combine(
 			AssertionVerdict other) {
+		if (this == NOT_ANALYSED || other == NOT_ANALYSED)
+			return this == other ? NOT_ANALYSED : MAY_FAIL;
 		if (this == UNREACHABLE)
 			return other;
 		if (other == UNREACHABLE || other == this)

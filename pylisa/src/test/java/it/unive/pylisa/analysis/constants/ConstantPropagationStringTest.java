@@ -104,8 +104,19 @@ class ConstantPropagationStringTest {
 				DOMAIN.satisfiesConstant(constant(BoolType.INSTANCE, true), null, null));
 		assertEquals(Satisfiability.NOT_SATISFIED,
 				DOMAIN.satisfiesConstant(constant(BoolType.INSTANCE, false), null, null));
-		assertEquals(Satisfiability.UNKNOWN,
+	}
+
+	@Test
+	void conditionsFollowPythonTruthiness() throws SemanticException {
+		assertEquals(Satisfiability.SATISFIED,
 				DOMAIN.satisfiesConstant(constant(StringType.INSTANCE, "a"), null, null));
+		assertEquals(Satisfiability.NOT_SATISFIED,
+				DOMAIN.satisfiesConstant(constant(StringType.INSTANCE, ""), null, null));
+		assertEquals(Satisfiability.NOT_SATISFIED, DOMAIN.satisfiesAbstractValue(integer(0), null, null));
+		assertEquals(Satisfiability.SATISFIED, DOMAIN.satisfiesAbstractValue(integer(-2), null, null));
+		assertEquals(Satisfiability.NOT_SATISFIED,
+				DOMAIN.satisfiesConstant(new it.unive.pylisa.symbolic.PyNoneConstant(SyntheticLocation.INSTANCE),
+						null, null));
 	}
 
 	@Test

@@ -9,11 +9,16 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.checks.semantic.SemanticCheck;
 import it.unive.lisa.checks.semantic.SemanticTool;
 import it.unive.lisa.lattices.Satisfiability;
+import it.unive.lisa.program.annotations.Annotation;
+import it.unive.lisa.program.annotations.matcher.AnnotationMatcher;
+import it.unive.lisa.program.annotations.matcher.BasicAnnotationMatcher;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.pylisa.cfg.statement.PyAssert;
+import it.unive.pylisa.frontend.ParserSupport;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,16 +44,43 @@ import java.util.Map;
  */
 public class AssertChecker<A extends AbstractLattice<A>, D extends AbstractDomain<A>> implements SemanticCheck<A, D> {
 
+	private static final AnnotationMatcher UNSOUND = new BasicAnnotationMatcher(
+			new Annotation(ParserSupport.UNSOUND_TRANSLATION));
+
 	private final Map<CodeLocation, AssertionVerdict> verdicts = new LinkedHashMap<>();
 
+	private final Map<CodeLocation, PyAssert> assertions = new LinkedHashMap<>();
+
+	private boolean unsoundTranslation;
+
 	/**
-	 * Yields the verdict of every assertion checked so far, by the location of
-	 * the assertion.
+	 * Yields the verdict of every assertion checked, by the location of the
+	 * assertion. The verdicts are final once the analysis has completed.
 	 *
 	 * @return the verdicts, in the order the assertions were checked
 	 */
 	public Map<CodeLocation, AssertionVerdict> getVerdicts() {
 		return Collections.unmodifiableMap(verdicts);
+	}
+
+	/**
+	 * Yields whether some analysed function was translated unsoundly by the
+	 * frontend, in which case no verdict is definite.
+	 *
+	 * @return {@code true} if it was
+	 */
+	public boolean sawUnsoundTranslation() {
+		return unsoundTranslation;
+	}
+
+	@Override
+	public boolean visit(
+			SemanticTool<A, D> tool,
+			CFG graph) {
+		if (!tool.getResultOf(graph).isEmpty()
+				&& graph.getDescriptor().getAnnotations().contains(UNSOUND))
+			unsoundTranslation = true;
+		return true;
 	}
 
 	@Override
@@ -58,15 +90,31 @@ public class AssertChecker<A extends AbstractLattice<A>, D extends AbstractDomai
 			Statement node) {
 		if (!(node instanceof PyAssert assertion))
 			return true;
-		AssertionVerdict verdict = AssertionVerdict.UNREACHABLE;
-		for (AnalyzedCFG<A> result : tool.getResultOf(graph))
+		Collection<AnalyzedCFG<A>> results = tool.getResultOf(graph);
+		AssertionVerdict verdict = results.isEmpty() ? AssertionVerdict.NOT_ANALYSED : AssertionVerdict.UNREACHABLE;
+		for (AnalyzedCFG<A> result : results)
 			verdict = verdict.combine(verdictIn(tool.getAnalysis(), result, assertion));
 		verdicts.merge(assertion.getLocation(), verdict, AssertionVerdict::combine);
-		if (verdict == AssertionVerdict.FAILS)
-			tool.warnOn(assertion, "The assertion fails in every execution that reaches it");
-		else if (verdict == AssertionVerdict.MAY_FAIL)
-			tool.warnOn(assertion, "The assertion may fail");
+		assertions.put(assertion.getLocation(), assertion);
 		return true;
+	}
+
+	@Override
+	public void afterExecution(
+			SemanticTool<A, D> tool) {
+		// part of the program may have been misrepresented, so that the
+		// analysed executions are not all the executions: nothing is definite
+		if (unsoundTranslation)
+			verdicts.replaceAll((location, verdict) -> verdict.unreliable());
+		verdicts.forEach((location, verdict) -> {
+			PyAssert assertion = assertions.get(location);
+			if (verdict == AssertionVerdict.FAILS)
+				tool.warnOn(assertion, "The assertion fails in every execution that reaches it");
+			else if (verdict == AssertionVerdict.MAY_FAIL)
+				tool.warnOn(assertion, "The assertion may fail");
+			else if (verdict == AssertionVerdict.NOT_ANALYSED)
+				tool.warnOn(assertion, "The assertion was not analysed: no analysed code runs its function");
+		});
 	}
 
 	private AssertionVerdict verdictIn(
@@ -77,6 +125,9 @@ public class AssertChecker<A extends AbstractLattice<A>, D extends AbstractDomai
 			AnalysisState<A> beforeAssertion = result.getAnalysisStateAfter(assertion.getCondition());
 			if (beforeAssertion.getExecution().isBottom() || beforeAssertion.getExecutionState().isBottom())
 				return AssertionVerdict.UNREACHABLE;
+			if (beforeAssertion.getExecutionExpressions().isEmpty())
+				// reached, but the condition has no value: nothing is decided
+				return AssertionVerdict.MAY_FAIL;
 			AssertionVerdict verdict = AssertionVerdict.UNREACHABLE;
 			for (SymbolicExpression condition : beforeAssertion.getExecutionExpressions()) {
 				Satisfiability satisfiability = analysis.satisfies(beforeAssertion, condition, assertion);

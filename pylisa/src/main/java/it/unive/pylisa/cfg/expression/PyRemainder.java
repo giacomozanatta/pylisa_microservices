@@ -42,7 +42,7 @@ public class PyRemainder extends Remainder {
 		if (rts != null && !rts.isEmpty() && rts.stream().anyMatch(Predicate.not(Type::isStringType)))
 			// this might not be a string formatting
 			result = result.lub(NumericOperands.apply(interprocedural, state, left, right,
-					PythonArithmetic.Rem.INSTANCE, this));
+					PythonArithmetic.Rem.INSTANCE, true, this));
 		return result;
 	}
 }

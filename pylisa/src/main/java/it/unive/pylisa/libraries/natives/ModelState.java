@@ -7,6 +7,7 @@ import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.lattices.ExpressionSet;
 import it.unive.lisa.lattices.Satisfiability;
+import it.unive.lisa.lattices.heap.allocations.AllocationSite;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.program.cfg.statement.Statement;
@@ -17,18 +18,19 @@ import it.unive.lisa.symbolic.heap.HeapDereference;
 import it.unive.lisa.symbolic.heap.HeapReference;
 import it.unive.lisa.symbolic.heap.MemoryAllocation;
 import it.unive.lisa.symbolic.value.BinaryExpression;
+import it.unive.lisa.symbolic.value.HeapLocation;
 import it.unive.lisa.symbolic.value.Identifier;
-import it.unive.lisa.symbolic.value.operator.binary.ComparisonEq;
-import it.unive.pylisa.symbolic.PyNoneConstant;
+import it.unive.lisa.symbolic.value.PushAny;
 import it.unive.lisa.symbolic.value.Skip;
 import it.unive.lisa.symbolic.value.UnaryExpression;
 import it.unive.lisa.symbolic.value.Variable;
+import it.unive.lisa.symbolic.value.operator.binary.ComparisonEq;
 import it.unive.lisa.symbolic.value.operator.unary.LogicalNegation;
 import it.unive.lisa.type.ReferenceType;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyExceptionType;
-import it.unive.lisa.symbolic.value.HeapLocation;
+import it.unive.pylisa.symbolic.PyNoneConstant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -266,7 +268,19 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			SymbolicExpression reference,
 			String name)
 			throws SemanticException {
-		return with(analysis.smallStepSemantics(state, field(reference, name), point));
+		AnalysisState<A> located = analysis.smallStepSemantics(state, field(reference, name), point);
+		boolean placeholder = false;
+		for (SymbolicExpression location : located.getExecutionExpressions())
+			placeholder |= isPlaceholder(location);
+		if (!placeholder)
+			return with(located);
+		// a field of an object the heap does not track holds an unknown value,
+		// whatever was written through the placeholder that stands for it
+		AnalysisState<A> result = state.bottomExecution();
+		for (SymbolicExpression location : located.getExecutionExpressions())
+			result = result.lub(analysis.smallStepSemantics(located,
+					isPlaceholder(location) ? new PushAny(Untyped.INSTANCE, call.getLocation()) : location, point));
+		return with(result);
 	}
 
 	/**
@@ -292,12 +306,16 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 		ExpressionSet values = value instanceof AccessChild
 				? analysis.rewrite(state, value, point)
 				: new ExpressionSet(value);
-		if (located.getExecutionExpressions().isEmpty())
+		List<SymbolicExpression> targets = new ArrayList<>();
+		for (SymbolicExpression target : located.getExecutionExpressions())
+			if (!isPlaceholder(target))
+				targets.add(target);
+		if (targets.isEmpty())
 			// the reference points to no object the analysis tracks, whose
 			// fields are therefore not tracked either
 			return this;
 		AnalysisState<A> result = state.bottomExecution();
-		for (SymbolicExpression target : located.getExecutionExpressions())
+		for (SymbolicExpression target : targets)
 			for (SymbolicExpression stored : values)
 				result = result.lub(analysis.assign(located, target, stored, point));
 		return with(result);
@@ -449,7 +467,8 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			throws SemanticException {
 		Set<String> names = new HashSet<>();
 		for (HeapLocation location : locations(reference))
-			names.add(location.getName());
+			if (!isPlaceholder(location))
+				names.add(location.getName());
 		return names;
 	}
 
@@ -472,7 +491,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			throws SemanticException {
 		Set<HeapLocation> left = locations(first);
 		Set<HeapLocation> right = locations(second);
-		if (left.isEmpty() || right.isEmpty())
+		// an object the heap does not track may be any object
+		if (left.isEmpty() || right.isEmpty() || left.stream().anyMatch(ModelState::isPlaceholder)
+				|| right.stream().anyMatch(ModelState::isPlaceholder))
 			return Satisfiability.UNKNOWN;
 		Set<String> leftNames = new HashSet<>();
 		left.forEach(location -> leftNames.add(location.getName()));
@@ -484,6 +505,23 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 				&& !left.iterator().next().isWeak() && !right.iterator().next().isWeak())
 			return Satisfiability.SATISFIED;
 		return Satisfiability.UNKNOWN;
+	}
+
+	/**
+	 * Yields whether an expression is a placeholder the heap uses for objects
+	 * it does not track (the object a reference of unknown origin points to):
+	 * such a location may stand for any object, and its fields for any value.
+	 *
+	 * @param expression the expression
+	 *
+	 * @return {@code true} if it is a placeholder
+	 */
+	public static boolean isPlaceholder(
+			SymbolicExpression expression) {
+		if (!(expression instanceof AllocationSite site))
+			return false;
+		String name = site.getLocationName();
+		return name.startsWith("unknown@") || name.startsWith("$pyheap@");
 	}
 
 	private Set<HeapLocation> locations(
