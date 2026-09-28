@@ -351,7 +351,8 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	 * Splits the executions of this state on a condition, continues each part
 	 * with its own step, and joins the outcomes. A part that no execution can
 	 * take (because the condition certainly holds, or certainly does not) is
-	 * not explored.
+	 * not explored. Where the condition is undecided both parts continue from
+	 * this state, which the condition does not refine.
 	 *
 	 * @param condition the condition
 	 * @param whenTrue  the step for the executions where the condition holds
@@ -367,13 +368,16 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			Step<A, D, SymbolicExpression> whenTrue,
 			Step<A, D, SymbolicExpression> whenFalse)
 			throws SemanticException {
+		// the parts are not refined by the condition: the value domains may
+		// refine summary locations (such as a field of an object allocated in
+		// a loop) as if they held a single value, which would wrongly carry
+		// the condition past the model
+		Satisfiability decided = satisfies(condition);
 		ModelState<A, D> result = unreachable();
-		ModelState<A, D> holds = assume(condition);
-		if (!holds.isUnreachable())
-			result = result.lub(whenTrue.apply(holds, condition));
-		ModelState<A, D> fails = assumeNot(condition);
-		if (!fails.isUnreachable())
-			result = result.lub(whenFalse.apply(fails, condition));
+		if (decided != Satisfiability.NOT_SATISFIED && !isUnreachable())
+			result = result.lub(whenTrue.apply(this, condition));
+		if (decided != Satisfiability.SATISFIED && !isUnreachable())
+			result = result.lub(whenFalse.apply(this, condition));
 		return result;
 	}
 

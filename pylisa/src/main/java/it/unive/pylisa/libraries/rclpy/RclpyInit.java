@@ -13,6 +13,8 @@ import it.unive.lisa.program.cfg.statement.Expression;
  */
 public class RclpyInit extends RosNative {
 
+	private static final int ARGS = 0;
+
 	private static final int CONTEXT = 1;
 
 	/**
@@ -51,6 +53,7 @@ public class RclpyInit extends RosNative {
 			ModelState<A, D> state,
 			ExpressionSet[] arguments)
 			throws SemanticException {
-		return state.forEach(arguments[CONTEXT], (current, context) -> ContextModel.init(current, callSite(), context));
+		return state.forEachCombination(java.util.List.of(arguments[CONTEXT], arguments[ARGS]),
+				(current, values) -> ContextModel.init(current, callSite(), values.get(0), values.get(1)));
 	}
 }

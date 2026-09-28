@@ -30,6 +30,8 @@ public class CreateSubscription extends RosNative {
 
 	private static final int RAW = 8;
 
+	private static final int QOS_OVERRIDING_OPTIONS = 7;
+
 	/**
 	 * Builds the model of one call.
 	 *
@@ -68,17 +70,22 @@ public class CreateSubscription extends RosNative {
 			throws SemanticException {
 		Expressions build = new Expressions(callSite());
 		return state.forEachCombination(
-				List.of(arguments[SELF], arguments[MSG_TYPE], arguments[TOPIC], arguments[CALLBACK],
+				List.of(arguments[QOS_OVERRIDING_OPTIONS], arguments[SELF], arguments[MSG_TYPE], arguments[TOPIC], arguments[CALLBACK],
 						arguments[QOS_PROFILE], arguments[RAW]),
 				(current, values) -> {
-					SymbolicExpression self = values.get(0);
-					SymbolicExpression topic = values.get(2);
-					SymbolicExpression qos = values.get(4);
-					return QosModels.depth(current, build, qos,
-							(checked, depth) -> RosNames.resolve(checked, build, self, topic, RclpyExceptions.INVALID_TOPIC_NAME,
+					// options that let the quality of service be overridden
+					// declare parameters for it
+					ModelState<A, D> declared = current.ifNone(values.get(0), (none, o) -> none,
+							(given, o) -> ParameterModels.markChanged(given, build, values.get(1)));
+					SymbolicExpression self = values.get(1);
+					SymbolicExpression topic = values.get(3);
+					SymbolicExpression qos = values.get(5);
+					return QosModels.depth(declared, build, qos,
+							(checked, depth) -> RosNames.resolve(checked, build, self, topic,
+									RclpyExceptions.INVALID_TOPIC_NAME,
 									(resolved, topicName) -> EntityModels.subscription(resolved, callSite(), self,
-											values.get(1), topic, topicName, values.get(3), qos, depth,
-											values.get(5))));
+											values.get(2), topic, topicName, values.get(4), qos, depth,
+											values.get(6))));
 				});
 	}
 }

@@ -7,18 +7,15 @@ import it.unive.lisa.lattices.ExpressionSet;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.statement.Expression;
-import java.util.List;
 
 /**
- * The model of {@code rclpy.executors.Executor.add_node(self, node)}: the node
- * records the executor in its {@code executor} attribute, and the call returns
- * {@code True}. The callbacks of the node are not executed.
+ * The model of {@code rclpy.node.Node.add_on_set_parameters_callback(self,
+ * callback)}: from now on, declaring or setting a parameter of the node may be
+ * rejected by the callback, which is not run.
  */
-public class AddNode extends RosNative {
+public class AddSetParametersCallback extends RosNative {
 
 	private static final int SELF = 0;
-
-	private static final int NODE = 1;
 
 	/**
 	 * Builds the model of one call.
@@ -27,11 +24,11 @@ public class AddNode extends RosNative {
 	 * @param location   the location of the call
 	 * @param parameters the arguments of the call
 	 */
-	protected AddNode(
+	protected AddSetParametersCallback(
 			CFG cfg,
 			CodeLocation location,
 			Expression... parameters) {
-		super(cfg, location, "Executor.add_node", parameters);
+		super(cfg, location, "Node.add_on_set_parameters_callback", parameters);
 	}
 
 	/**
@@ -44,11 +41,11 @@ public class AddNode extends RosNative {
 	 *
 	 * @return the model
 	 */
-	public static AddNode build(
+	public static AddSetParametersCallback build(
 			CFG cfg,
 			CodeLocation location,
 			Expression[] parameters) {
-		return new AddNode(cfg, location, parameters);
+		return new AddSetParametersCallback(cfg, location, parameters);
 	}
 
 	@Override
@@ -57,9 +54,6 @@ public class AddNode extends RosNative {
 			ExpressionSet[] arguments)
 			throws SemanticException {
 		Expressions build = new Expressions(callSite());
-		return state.forEachCombination(List.of(arguments[SELF], arguments[NODE]),
-				(current, values) -> ParameterModels.exposed(
-						current.write(values.get(1), ExecutorModel.EXECUTOR, values.get(0)), build, values.get(1))
-						.returning(build.bool(true)));
+		return state.forEach(arguments[SELF], (current, self) -> ParameterModels.addSetCallback(current, build, self));
 	}
 }

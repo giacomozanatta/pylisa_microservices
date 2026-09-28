@@ -3,14 +3,17 @@ package it.unive.pylisa.libraries.rclpy;
 import it.unive.lisa.analysis.AbstractDomain;
 import it.unive.lisa.analysis.AbstractLattice;
 import it.unive.lisa.analysis.SemanticException;
+import it.unive.lisa.lattices.Satisfiability;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
+import it.unive.pylisa.cfg.type.PyExceptionType;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * What the parameter methods of an rclpy node do to the program state.
@@ -20,15 +23,20 @@ import java.util.Set;
  * field {@value #PARAMETERS} of the node refers to the most recently declared
  * {@code Parameter}, whose field {@value #NEXT} refers to the one declared
  * before it, down to {@code None}. Looking up a name walks the chain and
- * compares names under assumption: where the comparison cannot be decided,
- * both "found here" and "look further" are explored, so the outcome holds for
- * any configured value domain.
+ * compares names: where a comparison is undecided, both "found here" and "look
+ * further" are explored, and neither is refined by the comparison, so the
+ * outcome holds also when an entry stands for several parameters (declared in
+ * a loop, say).
  * </p>
  * <p>
- * When the program changes parameters in ways the chain does not track
- * (several at once, or by undeclaring one), the node's field
+ * When parameters change in ways the chain does not track (several at once,
+ * undeclared, set by other nodes while the node is spun), the node's field
  * {@value #CHANGED} becomes true, and from then on its parameters are
  * unknown.
+ * </p>
+ * <p>
+ * Values given from outside the program come from the
+ * {@link ParameterOverrides} the client of the analysis supplies.
  * </p>
  */
 final class ParameterModels {
@@ -52,9 +60,22 @@ final class ParameterModels {
 
 	/**
 	 * The field of a node that tells whether the program gave it no
-	 * {@code parameter_overrides}.
+	 * parameter values of its own, neither as {@code parameter_overrides} nor
+	 * in {@code cli_args}.
 	 */
 	static final String NO_PROGRAM_OVERRIDES = "$no_parameter_overrides";
+
+	/**
+	 * The field of a node that tells whether it uses the arguments of the
+	 * process and of {@code rclpy.init}.
+	 */
+	static final String USE_GLOBAL_ARGUMENTS = "$use_global_arguments";
+
+	/**
+	 * The field of a node that tells whether a callback that may reject
+	 * parameter values was registered.
+	 */
+	static final String SET_CALLBACKS = "$set_parameters_callbacks";
 
 	/**
 	 * The field of a parameter that refers to the parameter declared before
@@ -68,10 +89,15 @@ final class ParameterModels {
 	static final String READ_ONLY = "$read_only";
 
 	/**
-	 * The field of a parameter that tells whether it has a value (a parameter
-	 * declared with only its type has none until it is set).
+	 * The field of a parameter that tells whether it has no value (type
+	 * {@code NOT_SET}).
 	 */
-	static final String INITIALIZED = "$initialized";
+	static final String NOT_SET = "$not_set";
+
+	/**
+	 * The field of a parameter that tells whether its type may change.
+	 */
+	static final String DYNAMIC = "$dynamic_typing";
 
 	private static final String NAME = "name";
 
@@ -79,33 +105,56 @@ final class ParameterModels {
 
 	private static final String TYPE = "type_";
 
+	/**
+	 * The parameter every node declares when it is created, through its time
+	 * source.
+	 */
+	private static final String USE_SIM_TIME = "use_sim_time";
+
 	private ParameterModels() {
 	}
 
 	/**
-	 * Initializes the parameters of a new node: none is declared.
+	 * The value of a declared parameter, and whether it has none.
 	 *
-	 * @param <A>                the kind of abstract state
-	 * @param <D>                the kind of abstract domain
-	 * @param state              the state
-	 * @param build              the factory of expressions
-	 * @param node               a reference to the node
-	 * @param programOverrides   the {@code parameter_overrides} argument
-	 * @param allowUndeclared    the {@code allow_undeclared_parameters}
-	 *                               argument
+	 * @param value  the value
+	 * @param notSet whether the parameter has no value
+	 */
+	private record Declared(SymbolicExpression value, SymbolicExpression notSet) {
+	}
+
+	/**
+	 * Initializes the parameters of a new node, as its constructor does: none
+	 * is declared by the program yet, and the time source of the node declares
+	 * {@code use_sim_time}.
+	 *
+	 * @param <A>                  the kind of abstract state
+	 * @param <D>                  the kind of abstract domain
+	 * @param state                the state
+	 * @param build                the factory of expressions
+	 * @param site                 the location of the call creating the node
+	 * @param node                 a reference to the node
+	 * @param programOverrides     the {@code parameter_overrides} argument
+	 * @param cliArgs              the {@code cli_args} argument
+	 * @param useGlobalArguments   the {@code use_global_arguments} argument
+	 * @param allowUndeclared      the {@code allow_undeclared_parameters}
+	 *                                 argument
 	 * @param declareFromOverrides the
-	 *                               {@code automatically_declare_parameters_from_overrides}
-	 *                               argument
+	 *                                 {@code automatically_declare_parameters_from_overrides}
+	 *                                 argument
 	 *
 	 * @return the state after the initialization
 	 *
-	 * @throws SemanticException if the fields cannot be written
+	 * @throws SemanticException if the initialization cannot be computed
 	 */
 	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> initialize(
 			ModelState<A, D> state,
 			Expressions build,
+			CodeLocation site,
 			SymbolicExpression node,
 			SymbolicExpression programOverrides,
+			SymbolicExpression cliArgs,
+			SymbolicExpression useGlobalArguments,
 			SymbolicExpression allowUndeclared,
 			SymbolicExpression declareFromOverrides)
 			throws SemanticException {
@@ -113,10 +162,22 @@ final class ParameterModels {
 		// analysis does not know
 		ModelState<A, D> initialized = state.write(node, PARAMETERS, build.none())
 				.write(node, CHANGED, declareFromOverrides)
-				.write(node, ALLOW_UNDECLARED, allowUndeclared);
-		return initialized.ifNone(programOverrides,
-				(none, v) -> none.write(node, NO_PROGRAM_OVERRIDES, build.bool(true)),
-				(given, v) -> given.write(node, NO_PROGRAM_OVERRIDES, build.bool(false)));
+				.write(node, ALLOW_UNDECLARED, allowUndeclared)
+				.write(node, USE_GLOBAL_ARGUMENTS, useGlobalArguments)
+				.write(node, SET_CALLBACKS, build.bool(false));
+		ModelState<A, D> placed = initialized.ifNone(programOverrides,
+				(noOverrides, o) -> noOverrides.ifNone(cliArgs,
+						(nothing, a) -> nothing.write(node, NO_PROGRAM_OVERRIDES, build.bool(true)),
+						(arguments, a) -> arguments.write(node, NO_PROGRAM_OVERRIDES, build.bool(false))),
+				(overrides, o) -> overrides.write(node, NO_PROGRAM_OVERRIDES, build.bool(false)));
+		// the time source declares use_sim_time unless it is already declared
+		SymbolicExpression name = build.string(USE_SIM_TIME);
+		CodeLocation timeSite = new TaggedLocation(site, USE_SIM_TIME);
+		ModelState.Step<A, D, SymbolicExpression> declareIt = (missing, none) -> declare(missing, build, timeSite,
+				node, name, build.bool(false), build.none(), build.bool(false));
+		return withChanged(placed, node,
+				(unknown, c) -> unknown.lub(declareIt.apply(unknown, build.none())),
+				(known, c) -> lookup(known, build, node, name, (declared, entry) -> declared, declareIt));
 	}
 
 	/**
@@ -149,17 +210,29 @@ final class ParameterModels {
 			SymbolicExpression descriptor,
 			SymbolicExpression ignoreOverride)
 			throws SemanticException {
-		ModelState.Step<A, D, SymbolicExpression> declareNew = (fresh, none) -> value(fresh, build, node, name,
-				defaultValue, ignoreOverride,
-				(valued, value) -> readOnly(valued, build, descriptor,
-						(described, readOnly) -> append(described, build, site, node, name, value, readOnly,
-								initialized(described, build, defaultValue))));
-		return withChanged(state, node,
-				(unknown, c) -> unknown.raise(RclpyExceptions.PARAMETER_ALREADY_DECLARED)
-						.lub(declareNew.apply(unknown, build.none())),
-				(known, c) -> lookup(known, build, node, name,
-						(duplicate, entry) -> duplicate.raise(RclpyExceptions.PARAMETER_ALREADY_DECLARED),
-						declareNew));
+		ModelState<A, D> result = state.unreachable();
+		// a name that is not a string, and a default that is not a parameter
+		// value (a dictionary, a list of mixed types, Parameter.Type.NOT_SET)
+		if (mayBe(state, name, t -> !t.isStringType()))
+			result = result.lub(state.raise(PyExceptionType.TYPE_ERROR));
+		if (mayBe(state, defaultValue, t -> !isPlain(t)))
+			result = result.lub(state.raise(PyExceptionType.TYPE_ERROR))
+					.lub(state.raise(PyExceptionType.VALUE_ERROR));
+		ModelState.Step<A, D, SymbolicExpression> declareNew = (fresh, none) -> dynamicTyping(fresh, build,
+				defaultValue, descriptor,
+				(typed, dynamic) -> value(typed, build, node, name, defaultValue, dynamic, ignoreOverride,
+						(valued, declared) -> checkedBySetCallbacks(valued, node,
+								(accepted, n) -> append(accepted, build, site, node, name, declared, dynamic,
+										descriptor))));
+		return result.lub(state.branch(build.equal(name, build.string("")),
+				(empty, c) -> empty.raise(RclpyExceptions.INVALID_PARAMETER),
+				(named, c) -> withChanged(named, node,
+						(unknown, c1) -> unknown.raise(RclpyExceptions.PARAMETER_ALREADY_DECLARED)
+								.lub(declareNew.apply(unknown, build.none())),
+						(known, c1) -> lookup(known, build, node, name,
+								(duplicate, entry) -> duplicate
+										.raise(RclpyExceptions.PARAMETER_ALREADY_DECLARED),
+								declareNew))));
 	}
 
 	/**
@@ -187,10 +260,19 @@ final class ParameterModels {
 			throws SemanticException {
 		return withChanged(state, node,
 				(unknown, c) -> unknown.returning(build.unknown())
-						.lub(unknown.raise(RclpyExceptions.PARAMETER_NOT_DECLARED)),
+						.lub(unknown.raise(RclpyExceptions.PARAMETER_NOT_DECLARED))
+						.lub(unknown.raise(RclpyExceptions.PARAMETER_UNINITIALIZED)),
 				(known, c) -> lookup(known, build, node, name,
-						(found, entry) -> requireInitialized(found, entry,
-								(set, e) -> set.returning(entry)),
+						// a statically typed parameter without value cannot
+						// be read
+						(found, entry) -> withField(found, entry, NOT_SET,
+								(checked, notSet) -> checked.branch(notSet,
+										(unset, c1) -> withField(unset, entry, DYNAMIC,
+												(typed, dynamic) -> typed.branch(dynamic,
+														(anyType, c2) -> anyType.returning(entry),
+														(fixedType, c2) -> fixedType.raise(
+																RclpyExceptions.PARAMETER_UNINITIALIZED))),
+										(set, c1) -> set.returning(entry))),
 						(missing, none) -> withField(missing, node, ALLOW_UNDECLARED,
 								(checked, allowed) -> checked.branch(allowed,
 										(allowing, c1) -> notSet(allowing, build, site, name),
@@ -200,7 +282,9 @@ final class ParameterModels {
 
 	/**
 	 * Reads a parameter or yields an alternative, as
-	 * {@code Node.get_parameter_or(name, alternative_value)} does.
+	 * {@code Node.get_parameter_or(name, alternative_value)} does: the
+	 * alternative is returned when the parameter is not declared or has no
+	 * value.
 	 *
 	 * @param <A>         the kind of abstract state
 	 * @param <D>         the kind of abstract domain
@@ -230,10 +314,10 @@ final class ParameterModels {
 		return withChanged(state, node,
 				(unknown, c) -> unknown.returning(build.unknown()).lub(otherwise.apply(unknown, build.none())),
 				(known, c) -> lookup(known, build, node, name,
-						(found, entry) -> withField(found, entry, INITIALIZED,
-								(checked, initialized) -> checked.branch(initialized,
-										(set, c1) -> set.returning(entry),
-										(unset, c1) -> otherwise.apply(unset, build.none()))),
+						(found, entry) -> withField(found, entry, NOT_SET,
+								(checked, notSet) -> checked.branch(notSet,
+										(unset, c1) -> otherwise.apply(unset, build.none()),
+										(set, c1) -> set.returning(entry))),
 						otherwise));
 	}
 
@@ -288,21 +372,23 @@ final class ParameterModels {
 			SymbolicExpression name)
 			throws SemanticException {
 		return withChanged(state, node,
-				(unknown, c) -> markChanged(unknown, build, node)
+				(unknown, c) -> markChanged(unknown, build, node).returning(build.none())
 						.lub(unknown.raise(RclpyExceptions.PARAMETER_NOT_DECLARED))
 						.lub(unknown.raise(RclpyExceptions.PARAMETER_IMMUTABLE)),
 				(known, c) -> lookup(known, build, node, name,
 						(found, entry) -> withField(found, entry, READ_ONLY,
 								(checked, readOnly) -> checked.branch(readOnly,
 										(immutable, c1) -> immutable.raise(RclpyExceptions.PARAMETER_IMMUTABLE),
-										(mutable, c1) -> markChanged(mutable, build, node))),
+										(mutable, c1) -> markChanged(mutable, build, node)
+												.returning(build.none()))),
 						(missing, none) -> missing.raise(RclpyExceptions.PARAMETER_NOT_DECLARED)));
 	}
 
 	/**
 	 * Records that the parameters of a node were changed in ways the chain
-	 * does not track, as setting several parameters at once does, and yields
-	 * an unknown result.
+	 * does not track, as declaring or setting several parameters at once does,
+	 * and yields an unknown result; the call may raise any of the exceptions
+	 * of these methods.
 	 *
 	 * @param <A>   the kind of abstract state
 	 * @param <D>   the kind of abstract domain
@@ -319,12 +405,87 @@ final class ParameterModels {
 			Expressions build,
 			SymbolicExpression node)
 			throws SemanticException {
-		ModelState<A, D> changed = state.write(node, CHANGED, build.bool(true));
-		return changed.returning(build.unknown())
-				.lub(changed.raise(RclpyExceptions.PARAMETER_NOT_DECLARED))
-				.lub(changed.raise(RclpyExceptions.PARAMETER_ALREADY_DECLARED))
-				.lub(changed.raise(RclpyExceptions.INVALID_PARAMETER_TYPE))
-				.lub(changed.raise(RclpyExceptions.PARAMETER_IMMUTABLE));
+		ModelState<A, D> changed = markChanged(state, build, node);
+		return raiseAny(changed.returning(build.unknown()), changed,
+				PyExceptionType.TYPE_ERROR,
+				PyExceptionType.VALUE_ERROR,
+				RclpyExceptions.INVALID_PARAMETER,
+				RclpyExceptions.INVALID_PARAMETER_VALUE,
+				RclpyExceptions.PARAMETER_NOT_DECLARED,
+				RclpyExceptions.PARAMETER_ALREADY_DECLARED,
+				RclpyExceptions.INVALID_PARAMETER_TYPE,
+				RclpyExceptions.PARAMETER_IMMUTABLE,
+				RclpyExceptions.PARAMETER_UNINITIALIZED);
+	}
+
+	/**
+	 * Reads parameters in ways whose results are not tracked (several at once,
+	 * their types, their descriptors): the result is unknown, and the call may
+	 * raise for undeclared or uninitialized parameters.
+	 *
+	 * @param <A>   the kind of abstract state
+	 * @param <D>   the kind of abstract domain
+	 * @param state the state
+	 * @param build the factory of expressions
+	 *
+	 * @return the state after the read
+	 *
+	 * @throws SemanticException if the read cannot be computed
+	 */
+	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> readUntracked(
+			ModelState<A, D> state,
+			Expressions build)
+			throws SemanticException {
+		return raiseAny(state.returning(build.unknown()), state,
+				RclpyExceptions.PARAMETER_NOT_DECLARED,
+				RclpyExceptions.PARAMETER_UNINITIALIZED);
+	}
+
+	/**
+	 * Registers a callback that is called when parameters are declared or
+	 * set, and may reject them. The callback is not run.
+	 *
+	 * @param <A>   the kind of abstract state
+	 * @param <D>   the kind of abstract domain
+	 * @param state the state
+	 * @param build the factory of expressions
+	 * @param node  a reference to the node
+	 *
+	 * @return the state after the registration
+	 *
+	 * @throws SemanticException if the registration cannot be recorded
+	 */
+	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> addSetCallback(
+			ModelState<A, D> state,
+			Expressions build,
+			SymbolicExpression node)
+			throws SemanticException {
+		return state.write(node, SET_CALLBACKS, build.bool(true)).returning(build.none());
+	}
+
+	/**
+	 * Records that other nodes may change the parameters of a node from now
+	 * on, if the client of the analysis says they may: the node is being spun
+	 * or was added to an executor, so its parameter services answer requests.
+	 *
+	 * @param <A>   the kind of abstract state
+	 * @param <D>   the kind of abstract domain
+	 * @param state the state
+	 * @param build the factory of expressions
+	 * @param node  a reference to the node
+	 *
+	 * @return the state after the change
+	 *
+	 * @throws SemanticException if the change cannot be recorded
+	 */
+	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> exposed(
+			ModelState<A, D> state,
+			Expressions build,
+			SymbolicExpression node)
+			throws SemanticException {
+		if (!ParameterOverrides.current().remoteChangesPossible())
+			return state;
+		return markChanged(state, build, node);
 	}
 
 	/**
@@ -352,12 +513,19 @@ final class ParameterModels {
 			SymbolicExpression type,
 			SymbolicExpression value)
 			throws SemanticException {
+		ModelState<A, D> result = state.unreachable();
+		// a value of no parameter type, and a value that does not agree with
+		// the given type
+		if (mayBe(state, value, t -> !isPlain(t)))
+			result = result.lub(state.raise(PyExceptionType.TYPE_ERROR));
 		ModelState<A, D> named = state.write(self, NAME, name)
 				.write(self, VALUE, value)
-				.write(self, INITIALIZED, build.bool(true));
-		return named.ifNone(type,
+				.write(self, NOT_SET, notSetOf(state, build, value))
+				.write(self, DYNAMIC, build.bool(false));
+		return result.lub(named.ifNone(type,
 				(inferred, c) -> inferred.write(self, TYPE, build.unknown()).returning(build.none()),
-				(given, c) -> given.write(self, TYPE, type).returning(build.none()));
+				(given, c) -> given.write(self, TYPE, type).returning(build.none())
+						.lub(given.raise(PyExceptionType.VALUE_ERROR))));
 	}
 
 	/**
@@ -389,8 +557,7 @@ final class ParameterModels {
 			ModelState.Step<A, D, SymbolicExpression> missing)
 			throws SemanticException {
 		ModelState<A, D> result = state.unreachable();
-		Set<Type> types = state.runtimeTypes(link);
-		if (types.isEmpty() || types.stream().anyMatch(t -> t.isNullType() || t.isUntyped()))
+		if (!certainly(state, link, Type::isPointerType))
 			// the end of the chain: the name is not declared
 			result = result.lub(missing.apply(state, build.none()));
 		Set<String> entries = state.objects(link);
@@ -408,8 +575,34 @@ final class ParameterModels {
 	}
 
 	/**
-	 * Computes the value a declared parameter gets: a value given from
-	 * outside the program if there may be one, the default otherwise.
+	 * Computes whether the type of a parameter may change: a parameter
+	 * declared with neither a value nor a descriptor has a dynamic type, one
+	 * declared with a value and no descriptor a static one, and otherwise the
+	 * descriptor tells. A descriptor may also reject the value with its
+	 * ranges, or conflict with a type given instead of a value.
+	 */
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> dynamicTyping(
+			ModelState<A, D> state,
+			Expressions build,
+			SymbolicExpression defaultValue,
+			SymbolicExpression descriptor,
+			ModelState.Step<A, D, SymbolicExpression> typed)
+			throws SemanticException {
+		return state.ifNone(descriptor,
+				(plain, d) -> plain.ifNone(defaultValue,
+						(nameOnly, v) -> typed.apply(nameOnly, build.bool(true)),
+						(withValue, v) -> typed.apply(withValue, build.bool(false))),
+				(described, d) -> withField(described, descriptor, "dynamic_typing", typed)
+						.lub(described.raise(RclpyExceptions.INVALID_PARAMETER_VALUE))
+						.lub(described.raise(PyExceptionType.VALUE_ERROR)));
+	}
+
+	/**
+	 * Computes the value a declared parameter gets. In order: the values the
+	 * program gives the node itself (its {@code parameter_overrides} and
+	 * {@code cli_args}), then, if the node uses global arguments, those given
+	 * to {@code rclpy.init} and those of the command line of the process (see
+	 * {@link ParameterOverrides}); otherwise the default.
 	 */
 	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> value(
 			ModelState<A, D> state,
@@ -417,78 +610,128 @@ final class ParameterModels {
 			SymbolicExpression node,
 			SymbolicExpression name,
 			SymbolicExpression defaultValue,
+			SymbolicExpression dynamic,
 			SymbolicExpression ignoreOverride,
-			ModelState.Step<A, D, SymbolicExpression> valued)
+			ModelState.Step<A, D, Declared> valued)
 			throws SemanticException {
-		SymbolicExpression stored = storedDefault(state, build, defaultValue);
+		Declared plain = new Declared(storedDefault(state, build, defaultValue),
+				notSetOf(state, build, defaultValue));
+		ModelState.Step<A, D, SymbolicExpression> overridden = (current, x) -> overridden(current, build,
+				defaultValue, dynamic, valued);
 		ParameterOverrides overrides = ParameterOverrides.current();
+		ModelState.Step<A, D, SymbolicExpression> hook = (current, x) -> fromHook(current, build, node, name,
+				defaultValue, dynamic, plain, overrides, overrides.known(), valued);
+		ModelState.Step<A, D, SymbolicExpression> global = (current, x) -> withField(current, node,
+				USE_GLOBAL_ARGUMENTS,
+				(checked, useGlobal) -> checked.branch(useGlobal,
+						(using, c) -> withField(using, node, NodeModel.CONTEXT,
+								(inContext, context) -> withField(inContext, context, ContextModel.ARGS_GIVEN,
+										(checkedArgs, given) -> checkedArgs.branch(given,
+												(fromProgram, c1) -> overridden.apply(fromProgram, x)
+														.lub(hook.apply(fromProgram, x)),
+												(fromProcess, c1) -> hook.apply(fromProcess, x)))),
+						(local, c) -> valued.apply(local, plain)));
 		return state.branch(ignoreOverride,
-				(ignored, c) -> valued.apply(ignored, stored),
-				(considered, c) -> known(considered, build, node, name, defaultValue, stored, overrides,
-						overrides.known(), valued));
+				(ignored, c) -> valued.apply(ignored, plain),
+				(considered, c) -> withField(considered, node, NO_PROGRAM_OVERRIDES,
+						(checked, none) -> checked.branch(none,
+								(onlyOutside, c1) -> global.apply(onlyOutside, none),
+								(given, c1) -> overridden.apply(given, none).lub(global.apply(given, none)))));
 	}
 
-	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> known(
+	/**
+	 * The value given by the command line of the process, as the client of the
+	 * analysis describes it.
+	 */
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> fromHook(
 			ModelState<A, D> state,
 			Expressions build,
 			SymbolicExpression node,
 			SymbolicExpression name,
 			SymbolicExpression defaultValue,
-			SymbolicExpression stored,
+			SymbolicExpression dynamic,
+			Declared plain,
 			ParameterOverrides overrides,
 			List<ParameterOverrides.Known> remaining,
-			ModelState.Step<A, D, SymbolicExpression> valued)
+			ModelState.Step<A, D, Declared> valued)
 			throws SemanticException {
-		if (remaining.isEmpty())
-			return unlisted(state, build, node, defaultValue, stored, overrides, valued);
-		ParameterOverrides.Known override = remaining.get(0);
+		if (remaining.isEmpty()) {
+			ModelState<A, D> result = valued.apply(state, plain);
+			if (overrides.othersMayBeOverridden())
+				result = result.lub(overridden(state, build, defaultValue, dynamic, valued));
+			return result;
+		}
+		ParameterOverrides.Known known = remaining.get(0);
 		List<ParameterOverrides.Known> rest = remaining.subList(1, remaining.size());
 		return withField(state, node, NodeModel.FULLY_QUALIFIED,
 				(current, fqn) -> current.branch(
-						build.and(build.equal(fqn, build.string(override.node())),
-								build.equal(name, build.string(override.name()))),
-						(overridden, c) -> valued.apply(overridden, build.constant(override.value())),
-						(other, c) -> known(other, build, node, name, defaultValue, stored, overrides, rest,
-								valued)));
+						build.and(build.equal(fqn, build.string(known.node())),
+								build.equal(name, build.string(known.name()))),
+						(matched, c) -> knownValue(matched, build, defaultValue, dynamic, known.value(), valued),
+						(other, c) -> fromHook(other, build, node, name, defaultValue, dynamic, plain, overrides,
+								rest, valued)));
 	}
 
 	/**
-	 * The value of a parameter that no known override matches: it may still
-	 * be overridden if the client of the analysis says others may be, or if
-	 * the program itself gives the node overrides.
+	 * A known value given from outside: it replaces the default, and makes a
+	 * statically typed declaration fail when its type is not the type of the
+	 * default.
 	 */
-	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> unlisted(
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> knownValue(
 			ModelState<A, D> state,
 			Expressions build,
-			SymbolicExpression node,
 			SymbolicExpression defaultValue,
-			SymbolicExpression stored,
-			ParameterOverrides overrides,
-			ModelState.Step<A, D, SymbolicExpression> valued)
+			SymbolicExpression dynamic,
+			Object value,
+			ModelState.Step<A, D, Declared> valued)
 			throws SemanticException {
-		if (overrides.othersMayBeOverridden())
-			return overridden(state, build, defaultValue, valued);
-		return withField(state, node, NO_PROGRAM_OVERRIDES,
-				(current, none) -> current.branch(none,
-						(plain, c) -> valued.apply(plain, stored),
-						(given, c) -> overridden(given, build, defaultValue, valued)));
+		Predicate<Type> sameKind = sameKind(value);
+		Satisfiability anyType = state.satisfies(dynamic);
+		boolean mayAgree = anyType != Satisfiability.NOT_SATISFIED || mayBe(state, defaultValue, sameKind);
+		boolean mustAgree = anyType == Satisfiability.SATISFIED || certainly(state, defaultValue, sameKind);
+		ModelState<A, D> result = state.unreachable();
+		if (mayAgree)
+			result = result.lub(valued.apply(state, new Declared(build.constant(value), build.bool(false))));
+		if (!mustAgree)
+			result = result.lub(state.raise(RclpyExceptions.INVALID_PARAMETER_TYPE));
+		return result;
 	}
 
 	/**
-	 * The value of a parameter that may be overridden: any value of the type
-	 * of the default. A value of another type makes a statically typed
-	 * declaration fail.
+	 * The value of a parameter that may be overridden with an unknown value:
+	 * any value of the type of the default, or of any type when the type is
+	 * dynamic. A value of another type makes a statically typed declaration
+	 * fail.
 	 */
 	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> overridden(
 			ModelState<A, D> state,
 			Expressions build,
 			SymbolicExpression defaultValue,
-			ModelState.Step<A, D, SymbolicExpression> valued)
+			SymbolicExpression dynamic,
+			ModelState.Step<A, D, Declared> valued)
 			throws SemanticException {
-		ModelState<A, D> result = valued.apply(state, build.unknown(typeOf(state, defaultValue)));
-		return result.lub(state.ifNone(defaultValue,
-				(dynamic, c) -> dynamic.unreachable(),
-				(typed, c) -> typed.raise(RclpyExceptions.INVALID_PARAMETER_TYPE)));
+		Satisfiability anyType = state.satisfies(dynamic);
+		Type type = anyType == Satisfiability.NOT_SATISFIED ? typeOf(state, defaultValue) : Untyped.INSTANCE;
+		ModelState<A, D> result = valued.apply(state, new Declared(build.unknown(type), build.bool(false)));
+		if (anyType != Satisfiability.SATISFIED)
+			result = result.lub(state.raise(RclpyExceptions.INVALID_PARAMETER_TYPE));
+		return result;
+	}
+
+	/**
+	 * Continues where the callbacks registered to check parameter values
+	 * accept the parameter, and raises where they may reject it.
+	 */
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> checkedBySetCallbacks(
+			ModelState<A, D> state,
+			SymbolicExpression node,
+			ModelState.Step<A, D, SymbolicExpression> accepted)
+			throws SemanticException {
+		return withField(state, node, SET_CALLBACKS,
+				(checked, registered) -> checked.branch(registered,
+						(checking, c) -> checking.raise(RclpyExceptions.INVALID_PARAMETER_VALUE)
+								.lub(accepted.apply(checking, registered)),
+						(unchecked, c) -> accepted.apply(unchecked, registered)));
 	}
 
 	/**
@@ -501,23 +744,24 @@ final class ParameterModels {
 			Expressions build,
 			SymbolicExpression defaultValue)
 			throws SemanticException {
-		Set<Type> types = state.runtimeTypes(defaultValue);
-		return !types.isEmpty() && types.stream().allMatch(ParameterModels::isPlain) ? defaultValue
-				: build.unknown();
+		return certainly(state, defaultValue, ParameterModels::isPlain) ? defaultValue : build.unknown();
 	}
 
 	/**
-	 * Yields whether a parameter declared with the given default has a value:
-	 * a parameter declared with only a type has none.
+	 * Yields whether a parameter with the given value has none: certainly for
+	 * {@code None}, certainly not for other plain values, unknown otherwise (a
+	 * parameter type given instead of a value has none).
 	 */
-	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> SymbolicExpression initialized(
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> SymbolicExpression notSetOf(
 			ModelState<A, D> state,
 			Expressions build,
-			SymbolicExpression defaultValue)
+			SymbolicExpression value)
 			throws SemanticException {
-		Set<Type> types = state.runtimeTypes(defaultValue);
-		return !types.isEmpty() && types.stream().allMatch(ParameterModels::isPlain) ? build.bool(true)
-				: build.unknown(BoolType.INSTANCE);
+		if (certainly(state, value, Type::isNullType))
+			return build.bool(true);
+		if (certainly(state, value, t -> isPlain(t) && !t.isNullType()))
+			return build.bool(false);
+		return build.unknown(BoolType.INSTANCE);
 	}
 
 	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> Type typeOf(
@@ -530,20 +774,46 @@ final class ParameterModels {
 		return Untyped.INSTANCE;
 	}
 
+	private static Predicate<Type> sameKind(
+			Object value) {
+		if (value instanceof String)
+			return Type::isStringType;
+		if (value instanceof Boolean)
+			return Type::isBooleanType;
+		if (value instanceof Integer || value instanceof Long)
+			return t -> t.isNumericType() && t.asNumericType().isIntegral();
+		return t -> t.isNumericType() && !t.asNumericType().isIntegral();
+	}
+
+	/**
+	 * Yields whether every type the value may have satisfies a predicate. With
+	 * no type information, nothing is certain.
+	 */
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> boolean certainly(
+			ModelState<A, D> state,
+			SymbolicExpression value,
+			Predicate<Type> predicate)
+			throws SemanticException {
+		Set<Type> types = state.runtimeTypes(value);
+		return !types.isEmpty() && types.stream().allMatch(predicate);
+	}
+
+	/**
+	 * Yields whether some type the value may have satisfies a predicate, or no
+	 * type information is available.
+	 */
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> boolean mayBe(
+			ModelState<A, D> state,
+			SymbolicExpression value,
+			Predicate<Type> predicate)
+			throws SemanticException {
+		Set<Type> types = state.runtimeTypes(value);
+		return types.isEmpty() || types.stream().anyMatch(t -> t.isUntyped() || predicate.test(t));
+	}
+
 	private static boolean isPlain(
 			Type type) {
 		return type.isStringType() || type.isNumericType() || type.isBooleanType() || type.isNullType();
-	}
-
-	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> readOnly(
-			ModelState<A, D> state,
-			Expressions build,
-			SymbolicExpression descriptor,
-			ModelState.Step<A, D, SymbolicExpression> described)
-			throws SemanticException {
-		return state.ifNone(descriptor,
-				(plain, c) -> described.apply(plain, build.bool(false)),
-				(given, c) -> withField(given, descriptor, "read_only", described));
 	}
 
 	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> append(
@@ -552,22 +822,29 @@ final class ParameterModels {
 			CodeLocation site,
 			SymbolicExpression node,
 			SymbolicExpression name,
-			SymbolicExpression value,
-			SymbolicExpression readOnly,
-			SymbolicExpression initialized)
+			Declared declared,
+			SymbolicExpression dynamic,
+			SymbolicExpression descriptor)
 			throws SemanticException {
-		return EntityModels.create(state, RosTypes.PARAMETER, site,
+		// the descriptor object is stored by rclpy and may be changed later
+		// by the program, so its read_only flag is known only without one
+		ModelState.Step<A, D, SymbolicExpression> create = (described, readOnly) -> EntityModels.create(described,
+				RosTypes.PARAMETER, site,
 				(created, entry) -> withField(created, node, PARAMETERS,
 						(linked, head) -> linked
 								.write(entry, NAME, name)
-								.write(entry, VALUE, value)
+								.write(entry, VALUE, declared.value())
 								.write(entry, TYPE, build.unknown())
+								.write(entry, NOT_SET, declared.notSet())
+								.write(entry, DYNAMIC, dynamic)
 								.write(entry, READ_ONLY, readOnly)
-								.write(entry, INITIALIZED, initialized)
 								.write(entry, NEXT, head)
 								.write(entry, EntityModels.NODE, node)
 								.write(node, PARAMETERS, entry)
 								.returning(entry)));
+		return state.ifNone(descriptor,
+				(plain, d) -> create.apply(plain, build.bool(false)),
+				(described, d) -> create.apply(described, build.unknown(BoolType.INSTANCE)));
 	}
 
 	/**
@@ -585,27 +862,42 @@ final class ParameterModels {
 						.write(parameter, NAME, name)
 						.write(parameter, VALUE, build.none())
 						.write(parameter, TYPE, build.unknown())
-						.write(parameter, INITIALIZED, build.bool(false))
+						.write(parameter, NOT_SET, build.bool(true))
+						.write(parameter, DYNAMIC, build.bool(false))
 						.returning(parameter));
 	}
 
-	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> requireInitialized(
-			ModelState<A, D> state,
-			SymbolicExpression entry,
-			ModelState.Step<A, D, SymbolicExpression> initialized)
-			throws SemanticException {
-		return withField(state, entry, INITIALIZED,
-				(checked, flag) -> checked.branch(flag,
-						initialized,
-						(unset, c) -> unset.raise(RclpyExceptions.PARAMETER_UNINITIALIZED)));
-	}
-
-	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> markChanged(
+	/**
+	 * Records that the parameters of a node were changed in ways the chain
+	 * does not track.
+	 *
+	 * @param <A>   the kind of abstract state
+	 * @param <D>   the kind of abstract domain
+	 * @param state the state
+	 * @param build the factory of expressions
+	 * @param node  a reference to the node
+	 *
+	 * @return the state after the change
+	 *
+	 * @throws SemanticException if the change cannot be recorded
+	 */
+	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> markChanged(
 			ModelState<A, D> state,
 			Expressions build,
 			SymbolicExpression node)
 			throws SemanticException {
-		return state.write(node, CHANGED, build.bool(true)).returning(build.none());
+		return state.write(node, CHANGED, build.bool(true));
+	}
+
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> raiseAny(
+			ModelState<A, D> normal,
+			ModelState<A, D> state,
+			PyExceptionType... types)
+			throws SemanticException {
+		ModelState<A, D> result = normal;
+		for (PyExceptionType type : types)
+			result = result.lub(state.raise(type));
+		return result;
 	}
 
 	/**

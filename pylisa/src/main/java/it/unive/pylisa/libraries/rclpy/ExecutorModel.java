@@ -84,7 +84,7 @@ final class ExecutorModel {
 			SymbolicExpression executor)
 			throws SemanticException {
 		Expressions build = new Expressions(site);
-		return state.ifNone(executor,
+		return ParameterModels.exposed(state, build, node).ifNone(executor,
 				(implicit, condition) -> {
 					ModelState<A, D> global = globalExecutor(implicit, site);
 					return global.forEach(global.values(), (current, found) -> current.write(node, EXECUTOR, found));

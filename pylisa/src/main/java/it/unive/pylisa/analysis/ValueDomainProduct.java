@@ -94,12 +94,16 @@ public class ValueDomainProduct<L1 extends ValueLattice<L1>, L2 extends ValueLat
 			ProgramPoint dest,
 			SemanticOracle oracle)
 			throws SemanticException {
-		L1 assumedFirst = first.assume(state.first, expression, src, dest, oracle);
-		L2 assumedSecond = second.assume(state.second, expression, src, dest, oracle);
-		if (assumedFirst.isBottom() || assumedSecond.isBottom())
-			// one domain proved the condition impossible: so is the pair
-			return new ValueLatticeProduct<>(assumedFirst.bottom(), assumedSecond.bottom());
-		return new ValueLatticeProduct<>(assumedFirst, assumedSecond);
+		// the refinements of the components are not used: LiSA's
+		// non-relational domains refine summary (weak) locations as if they
+		// were single values, and BoundedStringSet refines x != y by removing
+		// every string y may be, also when y may be several strings. A
+		// component only rules the condition out where it certainly does not
+		// hold, which is always sound
+		if (first.satisfies(state.first, expression, src, oracle) == Satisfiability.NOT_SATISFIED
+				|| second.satisfies(state.second, expression, src, oracle) == Satisfiability.NOT_SATISFIED)
+			return new ValueLatticeProduct<>(state.first.bottom(), state.second.bottom());
+		return state;
 	}
 
 	@Override

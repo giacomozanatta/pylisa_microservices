@@ -58,6 +58,20 @@ public final class RclpyExceptions {
 			.subclass("rclpy.exceptions.ParameterNotDeclaredException", PARAMETER);
 
 	/**
+	 * Raised when a parameter name is invalid (empty).
+	 */
+	public static final PyExceptionType INVALID_PARAMETER = PyExceptionType
+			.subclass("rclpy.exceptions.InvalidParameterException", PARAMETER);
+
+	/**
+	 * Raised when a parameter value is rejected, by the ranges of its
+	 * descriptor or by a callback registered with
+	 * {@code add_on_set_parameters_callback}.
+	 */
+	public static final PyExceptionType INVALID_PARAMETER_VALUE = PyExceptionType
+			.subclass("rclpy.exceptions.InvalidParameterValueException", PARAMETER);
+
+	/**
 	 * Raised when a parameter is declared twice.
 	 */
 	public static final PyExceptionType PARAMETER_ALREADY_DECLARED = PyExceptionType

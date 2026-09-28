@@ -59,9 +59,36 @@ class ParameterStateTest {
 			RosConfig config)
 			throws Exception {
 		ParameterOverrides.use(ParameterOverrides.of(List.of(new ParameterOverrides.Known("/n", "topic", "other")),
-				false));
+				false, false));
 		RosTestHelper helper = RosTestHelper.analyse(PROGRAM, config);
 		assertEquals(Val.exact("/other"), helper.after("@pub").object("self").ref("pub").field("topic_name"));
+	}
+
+	@ParameterizedTest
+	@EnumSource(RosConfig.class)
+	void theSoundnessReviewCounterexamplesHold(
+			RosConfig config)
+			throws Exception {
+		ParameterOverrides.use(ParameterOverrides.of(List.of(new ParameterOverrides.Known("/n", "typed", "fast")),
+				false, true));
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/us2_param_review.py", config);
+		// every node declares use_sim_time, so declaring it again fails
+		assertTrue(helper.after("@sim").errors().contains("rclpy.exceptions.ParameterAlreadyDeclaredException"));
+		// two parameters declared at the same site: 'b' is not ruled out
+		// after looking 'a' up
+		assertTrue(!helper.after("@summary").value("has_b").equals(Val.exact(false)),
+				helper.after("@summary").value("has_b").toString());
+		// a parameter declared with only its name has no value, and
+		// get_parameter_or yields the alternative
+		helper.assertAllProved();
+		// a registered callback may reject a declaration
+		assertTrue(helper.after("@callback").errors().contains("rclpy.exceptions.InvalidParameterValueException"));
+		// a known value of another type makes a static declaration fail
+		assertTrue(helper.after("@typed").errors().contains("rclpy.exceptions.InvalidParameterTypeException"));
+		// values the program passes in cli_args may set the parameter
+		assertEquals(Val.top(), helper.after("@cli").value("p"));
+		// once spun, other nodes may have set the parameter
+		assertEquals(Val.top(), helper.after("@spun").value("r"));
 	}
 
 	@ParameterizedTest

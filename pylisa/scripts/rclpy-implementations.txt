@@ -33,3 +33,11 @@ rclpy.node.Node.has_parameter it.unive.pylisa.libraries.rclpy.HasParameter
 rclpy.node.Node.undeclare_parameter it.unive.pylisa.libraries.rclpy.UndeclareParameter
 rclpy.parameter.Parameter.__init__ it.unive.pylisa.libraries.rclpy.ParameterInit
 rclpy.node.Node.set_descriptor it.unive.pylisa.libraries.rclpy.ChangeParameters
+rclpy.node.Node.get_parameters it.unive.pylisa.libraries.rclpy.ReadParameters
+rclpy.node.Node.get_parameters_by_prefix it.unive.pylisa.libraries.rclpy.ReadParameters
+rclpy.node.Node.get_parameter_type it.unive.pylisa.libraries.rclpy.ReadParameters
+rclpy.node.Node.get_parameter_types it.unive.pylisa.libraries.rclpy.ReadParameters
+rclpy.node.Node.describe_parameter it.unive.pylisa.libraries.rclpy.ReadParameters
+rclpy.node.Node.describe_parameters it.unive.pylisa.libraries.rclpy.ReadParameters
+rclpy.node.Node.add_on_set_parameters_callback it.unive.pylisa.libraries.rclpy.AddSetParametersCallback
+rclpy.node.Node.remove_on_set_parameters_callback it.unive.pylisa.libraries.rclpy.RemoveSetParametersCallback

@@ -5,10 +5,12 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * The values given to parameters from outside the analysed program (launch
- * files, {@code --ros-args -p}, {@code --params-file}). rclpy's
- * {@code declare_parameter} uses such a value, when there is one, instead of
- * the default the program gives. Which values exist depends on how the
+ * The values given to parameters from outside the analysed program: when it
+ * starts, by the command line of the process (launch files,
+ * {@code --ros-args -p}, {@code --params-file}), which rclpy's
+ * {@code declare_parameter} uses instead of the default the program gives;
+ * and while it runs, by other nodes calling the parameter services of a node
+ * that is being spun. Which values exist depends on how the
  * program is deployed, not on its code: the client of the analysis supplies
  * them with {@link #use}. Unless it does, any parameter may have any value
  * of its type, which is the sound choice.
@@ -54,27 +56,42 @@ public interface ParameterOverrides {
 	boolean othersMayBeOverridden();
 
 	/**
-	 * Any parameter may be given any value from outside.
+	 * Yields whether other nodes may change the parameters of a node, through
+	 * its parameter services, once the node is spun or added to an executor.
+	 *
+	 * @return {@code true} if they may
 	 */
-	ParameterOverrides UNKNOWN = of(List.of(), true);
+	boolean remoteChangesPossible();
 
 	/**
-	 * No parameter is given a value from outside.
+	 * Any parameter may be given any value from outside, when the program
+	 * starts and while it runs.
 	 */
-	ParameterOverrides NONE = of(List.of(), false);
+	ParameterOverrides UNKNOWN = of(List.of(), true, true);
+
+	/**
+	 * No parameter is given a value from outside, neither when the program
+	 * starts nor while it runs.
+	 */
+	ParameterOverrides NONE = of(List.of(), false, false);
 
 	/**
 	 * Yields the overrides with the given known values.
 	 *
 	 * @param known                 the values known to be given from outside
+	 *                                  when the program starts
 	 * @param othersMayBeOverridden whether other parameters may be given
-	 *                                  values from outside
+	 *                                  values from outside when the program
+	 *                                  starts
+	 * @param remoteChangesPossible whether other nodes may change parameters
+	 *                                  while the program runs
 	 *
 	 * @return the overrides
 	 */
 	static ParameterOverrides of(
 			List<Known> known,
-			boolean othersMayBeOverridden) {
+			boolean othersMayBeOverridden,
+			boolean remoteChangesPossible) {
 		List<Known> values = List.copyOf(known);
 		return new ParameterOverrides() {
 
@@ -86,6 +103,11 @@ public interface ParameterOverrides {
 			@Override
 			public boolean othersMayBeOverridden() {
 				return othersMayBeOverridden;
+			}
+
+			@Override
+			public boolean remoteChangesPossible() {
+				return remoteChangesPossible;
 			}
 		};
 	}

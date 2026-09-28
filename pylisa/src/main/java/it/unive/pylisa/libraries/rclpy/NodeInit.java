@@ -24,7 +24,11 @@ public class NodeInit extends RosNative {
 
 	private static final int CONTEXT = 2;
 
+	private static final int CLI_ARGS = 3;
+
 	private static final int NAMESPACE = 4;
+
+	private static final int USE_GLOBAL_ARGUMENTS = 5;
 
 	private static final int START_PARAMETER_SERVICES = 7;
 
@@ -73,12 +77,14 @@ public class NodeInit extends RosNative {
 		Expressions build = new Expressions(callSite());
 		return state.forEachCombination(
 				List.of(arguments[SELF], arguments[NODE_NAME], arguments[NAMESPACE], arguments[CONTEXT],
-						arguments[START_PARAMETER_SERVICES], arguments[PARAMETER_OVERRIDES],
-						arguments[ALLOW_UNDECLARED_PARAMETERS], arguments[DECLARE_PARAMETERS_FROM_OVERRIDES]),
+						arguments[START_PARAMETER_SERVICES], arguments[PARAMETER_OVERRIDES], arguments[CLI_ARGS],
+						arguments[USE_GLOBAL_ARGUMENTS], arguments[ALLOW_UNDECLARED_PARAMETERS],
+						arguments[DECLARE_PARAMETERS_FROM_OVERRIDES]),
 				(current, values) -> ParameterModels.initialize(
 						NodeModel.initialize(current, callSite(), values.get(0), values.get(1), values.get(2),
 								values.get(3), values.get(4)),
-						build, values.get(0), values.get(5), values.get(6), values.get(7))
+						build, callSite(), values.get(0), values.get(5), values.get(6), values.get(7),
+						values.get(8), values.get(9))
 						.returning(build.none()));
 	}
 }

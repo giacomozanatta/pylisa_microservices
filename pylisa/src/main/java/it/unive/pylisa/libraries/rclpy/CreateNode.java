@@ -21,7 +21,11 @@ public class CreateNode extends RosNative {
 
 	private static final int CONTEXT = 1;
 
+	private static final int CLI_ARGS = 2;
+
 	private static final int NAMESPACE = 3;
+
+	private static final int USE_GLOBAL_ARGUMENTS = 4;
 
 	private static final int START_PARAMETER_SERVICES = 6;
 
@@ -72,12 +76,14 @@ public class CreateNode extends RosNative {
 				(created, node) -> created.forEachCombination(
 						List.of(arguments[NODE_NAME], arguments[NAMESPACE], arguments[CONTEXT],
 								arguments[START_PARAMETER_SERVICES], arguments[PARAMETER_OVERRIDES],
+								arguments[CLI_ARGS], arguments[USE_GLOBAL_ARGUMENTS],
 								arguments[ALLOW_UNDECLARED_PARAMETERS],
 								arguments[DECLARE_PARAMETERS_FROM_OVERRIDES]),
 						(current, values) -> ParameterModels.initialize(
 								NodeModel.initialize(current, callSite(), node, values.get(0), values.get(1),
 										values.get(2), values.get(3)),
-								build, node, values.get(4), values.get(5), values.get(6))
+								build, callSite(), node, values.get(4), values.get(5), values.get(6),
+								values.get(7), values.get(8))
 								.returning(node)));
 	}
 }

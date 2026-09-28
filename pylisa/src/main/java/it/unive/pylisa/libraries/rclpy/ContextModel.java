@@ -15,6 +15,13 @@ import it.unive.lisa.symbolic.SymbolicExpression;
  */
 final class ContextModel {
 
+	/**
+	 * The field of a context that tells whether {@code rclpy.init} was given
+	 * arguments by the program, instead of reading the command line of the
+	 * process.
+	 */
+	static final String ARGS_GIVEN = "$args_given";
+
 	private ContextModel() {
 	}
 
@@ -27,6 +34,8 @@ final class ContextModel {
 	 * @param state   the state
 	 * @param site    the location of the call
 	 * @param context the context given by the program, or {@code None}
+	 * @param args    the arguments given by the program, or {@code None} to
+	 *                    read the command line of the process
 	 *
 	 * @return the state after the initialization, with {@code None} as
 	 *             computed value
@@ -36,15 +45,21 @@ final class ContextModel {
 	static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ModelState<A, D> init(
 			ModelState<A, D> state,
 			CodeLocation site,
-			SymbolicExpression context)
+			SymbolicExpression context,
+			SymbolicExpression args)
 			throws SemanticException {
 		Expressions build = new Expressions(site);
+		// arguments given by the program, instead of the command line of the
+		// process, may set parameters
+		ModelState.Step<A, D, SymbolicExpression> initialize = (current, target) -> current.ifNone(args,
+				(fromProcess, a) -> fromProcess.write(target, ARGS_GIVEN, build.bool(false)),
+				(fromProgram, a) -> fromProgram.write(target, ARGS_GIVEN, build.bool(true)))
+				.write(target, NodeModel.CONTEXT_OK, build.bool(true));
 		return state.ifNone(context,
 				(implicit, condition) -> EntityModels.create(implicit, RosTypes.CONTEXT, site,
-						(created, fresh) -> created
-								.write(fresh, NodeModel.CONTEXT_OK, build.bool(true))
+						(created, fresh) -> initialize.apply(created, fresh)
 								.assign(NodeModel.defaultContext(build), fresh)),
-				(explicit, condition) -> explicit.write(context, NodeModel.CONTEXT_OK, build.bool(true)))
+				(explicit, condition) -> initialize.apply(explicit, context))
 				.returning(build.none());
 	}
 

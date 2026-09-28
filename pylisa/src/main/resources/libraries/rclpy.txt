@@ -505,15 +505,15 @@ library rclpy.node:
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param name type it.unive.lisa.type.Untyped::INSTANCE
-        instance method get_parameter_types: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method get_parameter_types: it.unive.pylisa.libraries.rclpy.ReadParameters
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param names type it.unive.lisa.type.Untyped::INSTANCE
-        instance method get_parameter_type: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method get_parameter_type: it.unive.pylisa.libraries.rclpy.ReadParameters
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param name type it.unive.lisa.type.Untyped::INSTANCE
-        instance method get_parameters: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method get_parameters: it.unive.pylisa.libraries.rclpy.ReadParameters
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param names type it.unive.lisa.type.Untyped::INSTANCE
@@ -526,7 +526,7 @@ library rclpy.node:
             param self libtype Node*
             param name type it.unive.lisa.type.Untyped::INSTANCE
             param alternative_value type it.unive.lisa.type.Untyped::INSTANCE default none
-        instance method get_parameters_by_prefix: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method get_parameters_by_prefix: it.unive.pylisa.libraries.rclpy.ReadParameters
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param prefix type it.unive.lisa.type.Untyped::INSTANCE
@@ -538,19 +538,19 @@ library rclpy.node:
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param parameter_list type it.unive.lisa.type.Untyped::INSTANCE
-        instance method add_on_set_parameters_callback: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method add_on_set_parameters_callback: it.unive.pylisa.libraries.rclpy.AddSetParametersCallback
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param callback type it.unive.lisa.type.Untyped::INSTANCE
-        instance method remove_on_set_parameters_callback: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method remove_on_set_parameters_callback: it.unive.pylisa.libraries.rclpy.RemoveSetParametersCallback
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param callback type it.unive.lisa.type.Untyped::INSTANCE
-        instance method describe_parameter: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method describe_parameter: it.unive.pylisa.libraries.rclpy.ReadParameters
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param name type it.unive.lisa.type.Untyped::INSTANCE
-        instance method describe_parameters: it.unive.pylisa.libraries.rclpy.RosUnknownResult
+        instance method describe_parameters: it.unive.pylisa.libraries.rclpy.ReadParameters
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Node*
             param names type it.unive.lisa.type.Untyped::INSTANCE
