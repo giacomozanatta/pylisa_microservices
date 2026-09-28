@@ -1,0 +1,341 @@
+package it.unive.pylisa.libraries.rclpy;
+
+import it.unive.lisa.analysis.AbstractDomain;
+import it.unive.lisa.analysis.AbstractLattice;
+import it.unive.lisa.analysis.Analysis;
+import it.unive.lisa.analysis.AnalysisState;
+import it.unive.lisa.analysis.SemanticException;
+import it.unive.lisa.lattices.ExpressionSet;
+import it.unive.lisa.lattices.Satisfiability;
+import it.unive.lisa.program.cfg.CodeLocation;
+import it.unive.lisa.program.cfg.ProgramPoint;
+import it.unive.lisa.program.cfg.statement.Statement;
+import it.unive.lisa.program.type.BoolType;
+import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.lisa.symbolic.heap.AccessChild;
+import it.unive.lisa.symbolic.heap.HeapDereference;
+import it.unive.lisa.symbolic.heap.HeapReference;
+import it.unive.lisa.symbolic.heap.MemoryAllocation;
+import it.unive.lisa.symbolic.value.UnaryExpression;
+import it.unive.lisa.symbolic.value.Variable;
+import it.unive.lisa.symbolic.value.operator.unary.LogicalNegation;
+import it.unive.lisa.type.ReferenceType;
+import it.unive.lisa.type.Type;
+import it.unive.lisa.type.Untyped;
+import it.unive.pylisa.cfg.type.PyExceptionType;
+
+/**
+ * One analysis state inside the model of a library call, together with the
+ * operations that library models perform on it: allocating objects, reading
+ * and writing their fields, splitting on conditions, raising exceptions and
+ * producing the result of the call.
+ * <p>
+ * Instances are immutable: every operation yields a new state and leaves this
+ * one unchanged, so that a model can explore alternative outcomes (a valid and
+ * an invalid argument, say) from the same starting point and join them.
+ * </p>
+ * <p>
+ * After an operation that computes values ({@link #allocate}, {@link #read},
+ * {@link #returning}), those values are available through {@link #values()}.
+ * </p>
+ *
+ * @param <A> the kind of abstract state
+ * @param <D> the kind of abstract domain
+ */
+public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDomain<A>> {
+
+	/**
+	 * A step of a model that may fail with a semantic exception.
+	 *
+	 * @param <A> the kind of abstract state
+	 * @param <D> the kind of abstract domain
+	 * @param <T> the kind of input of the step
+	 */
+	@FunctionalInterface
+	public interface Step<A extends AbstractLattice<A>, D extends AbstractDomain<A>, T> {
+
+		/**
+		 * Performs the step.
+		 *
+		 * @param state the state the step starts from
+		 * @param input the input of the step
+		 *
+		 * @return the state after the step
+		 *
+		 * @throws SemanticException if the step cannot be performed
+		 */
+		ModelState<A, D> apply(
+				ModelState<A, D> state,
+				T input)
+				throws SemanticException;
+	}
+
+	private final Analysis<A, D> analysis;
+
+	private final AnalysisState<A> state;
+
+	private final ProgramPoint point;
+
+	private final Statement call;
+
+	/**
+	 * Builds the state.
+	 *
+	 * @param analysis the analysis computing the state
+	 * @param state    the analysis state
+	 * @param point    the program point of the model
+	 * @param call     the call being modelled, which is the statement that
+	 *                     raises the exceptions of the model
+	 */
+	public ModelState(
+			Analysis<A, D> analysis,
+			AnalysisState<A> state,
+			ProgramPoint point,
+			Statement call) {
+		this.analysis = analysis;
+		this.state = state;
+		this.point = point;
+		this.call = call;
+	}
+
+	/**
+	 * Yields the underlying analysis state.
+	 *
+	 * @return the analysis state
+	 */
+	public AnalysisState<A> analysisState() {
+		return state;
+	}
+
+	/**
+	 * Yields the values computed by the last value-producing operation.
+	 *
+	 * @return the values
+	 */
+	public ExpressionSet values() {
+		return state.getExecutionExpressions();
+	}
+
+	/**
+	 * Yields whether no execution continues normally from this state.
+	 *
+	 * @return {@code true} if the normal execution state is bottom
+	 */
+	public boolean isUnreachable() {
+		return state.getExecution().isBottom() || state.getExecutionState().isBottom();
+	}
+
+	/**
+	 * Yields the state that describes no execution continuing normally, but
+	 * keeps the errors raised so far.
+	 *
+	 * @return the state
+	 */
+	public ModelState<A, D> unreachable() {
+		return with(state.bottomExecution());
+	}
+
+	/**
+	 * Joins this state with another one: the result describes the executions
+	 * of both.
+	 *
+	 * @param other the other state
+	 *
+	 * @return the join
+	 *
+	 * @throws SemanticException if the states cannot be joined
+	 */
+	public ModelState<A, D> lub(
+			ModelState<A, D> other)
+			throws SemanticException {
+		return with(state.lub(other.state));
+	}
+
+	/**
+	 * Applies a step to every given value, starting each time from this state,
+	 * and joins the outcomes. This is how a model handles an argument that may
+	 * denote several values.
+	 *
+	 * @param <T>    the kind of values
+	 * @param values the values
+	 * @param step   the step
+	 *
+	 * @return the join of the outcomes, unreachable if there are no values
+	 *
+	 * @throws SemanticException if a step fails
+	 */
+	public <T> ModelState<A, D> forEach(
+			Iterable<T> values,
+			Step<A, D, T> step)
+			throws SemanticException {
+		ModelState<A, D> result = unreachable();
+		for (T value : values)
+			result = result.lub(step.apply(this, value));
+		return result;
+	}
+
+	/**
+	 * Allocates a new object. Its references become the computed values.
+	 *
+	 * @param type the type of the object
+	 * @param site the allocation site: objects allocated at the same site are
+	 *                 represented by the same abstract object
+	 *
+	 * @return the state after the allocation
+	 *
+	 * @throws SemanticException if the allocation cannot be performed
+	 */
+	public ModelState<A, D> allocate(
+			Type type,
+			CodeLocation site)
+			throws SemanticException {
+		AnalysisState<A> allocated = analysis.smallStepSemantics(state, new MemoryAllocation(type, site, false), point);
+		AnalysisState<A> result = state.bottomExecution();
+		for (SymbolicExpression location : allocated.getExecutionExpressions()) {
+			HeapReference reference = new HeapReference(new ReferenceType(type), location, site);
+			result = result.lub(analysis.smallStepSemantics(allocated, reference, point));
+		}
+		return with(result);
+	}
+
+	/**
+	 * Reads a field of the object a reference points to. The locations of the
+	 * field become the computed values; the values stored there are read by
+	 * using those locations as expressions.
+	 *
+	 * @param reference the reference
+	 * @param name      the field name
+	 *
+	 * @return the state after the read
+	 *
+	 * @throws SemanticException if the read cannot be performed
+	 */
+	public ModelState<A, D> read(
+			SymbolicExpression reference,
+			String name)
+			throws SemanticException {
+		return with(analysis.smallStepSemantics(state, field(reference, name), point));
+	}
+
+	/**
+	 * Writes a value into a field of the object a reference points to.
+	 *
+	 * @param reference the reference
+	 * @param name      the field name
+	 * @param value     the value
+	 *
+	 * @return the state after the write
+	 *
+	 * @throws SemanticException if the write cannot be performed
+	 */
+	public ModelState<A, D> write(
+			SymbolicExpression reference,
+			String name,
+			SymbolicExpression value)
+			throws SemanticException {
+		AnalysisState<A> located = analysis.smallStepSemantics(state, field(reference, name), point);
+		AnalysisState<A> result = state.bottomExecution();
+		for (SymbolicExpression target : located.getExecutionExpressions())
+			result = result.lub(analysis.assign(located, target, value, point));
+		return with(result);
+	}
+
+	/**
+	 * Keeps only the executions in which a condition may hold.
+	 *
+	 * @param condition the condition
+	 *
+	 * @return the refined state, unreachable if the condition cannot hold
+	 *
+	 * @throws SemanticException if the condition cannot be evaluated
+	 */
+	public ModelState<A, D> assume(
+			SymbolicExpression condition)
+			throws SemanticException {
+		return with(analysis.assume(state, condition, point, point));
+	}
+
+	/**
+	 * Keeps only the executions in which a condition may not hold.
+	 *
+	 * @param condition the condition
+	 *
+	 * @return the refined state, unreachable if the condition must hold
+	 *
+	 * @throws SemanticException if the condition cannot be evaluated
+	 */
+	public ModelState<A, D> assumeNot(
+			SymbolicExpression condition)
+			throws SemanticException {
+		return assume(new UnaryExpression(BoolType.INSTANCE, condition, LogicalNegation.INSTANCE,
+				call.getLocation()));
+	}
+
+	/**
+	 * Decides a condition in this state.
+	 *
+	 * @param condition the condition
+	 *
+	 * @return whether the condition holds
+	 *
+	 * @throws SemanticException if the condition cannot be evaluated
+	 */
+	public Satisfiability satisfies(
+			SymbolicExpression condition)
+			throws SemanticException {
+		return analysis.satisfies(state, condition, point);
+	}
+
+	/**
+	 * Raises an exception: every execution of this state stops normally and
+	 * continues as an error of the given type, raised by the modelled call.
+	 *
+	 * @param type the type of the exception
+	 *
+	 * @return the state after the raise
+	 *
+	 * @throws SemanticException if the error cannot be recorded
+	 */
+	public ModelState<A, D> raise(
+			PyExceptionType type)
+			throws SemanticException {
+		return with(analysis.moveExecutionToError(state, new AnalysisState.Error(type, call), point));
+	}
+
+	/**
+	 * Makes a value the computed value, that is, the result of the call.
+	 *
+	 * @param value the value
+	 *
+	 * @return the state after the evaluation of the value
+	 *
+	 * @throws SemanticException if the value cannot be evaluated
+	 */
+	public ModelState<A, D> returning(
+			SymbolicExpression value)
+			throws SemanticException {
+		return with(analysis.smallStepSemantics(state, value, point));
+	}
+
+	/**
+	 * Builds the expression that accesses a field of the object a reference
+	 * points to.
+	 *
+	 * @param reference the reference
+	 * @param name      the field name
+	 *
+	 * @return the field access
+	 */
+	public SymbolicExpression field(
+			SymbolicExpression reference,
+			String name) {
+		CodeLocation location = call.getLocation();
+		HeapDereference container = new HeapDereference(Untyped.INSTANCE, reference, location);
+		return new AccessChild(Untyped.INSTANCE, container, new Variable(Untyped.INSTANCE, name, location), location);
+	}
+
+	private ModelState<A, D> with(
+			AnalysisState<A> next) {
+		return new ModelState<>(analysis, next, point, call);
+	}
+}

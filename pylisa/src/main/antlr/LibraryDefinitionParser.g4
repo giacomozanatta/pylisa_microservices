@@ -72,8 +72,12 @@ classDef
    : ROOT? SEALED? CLASS name = IDENTIFIER (ARROW syntheticType = type)? (EXTENDS base = IDENTIFIER)? (COLON (type_name = IDENTIFIER)? (method | field)*)?
    ;
 
+libraryImport
+   : IMPORTS name = IDENTIFIER
+   ;
+
 library
-   : LIBRARY name = IDENTIFIER COLON LOCATION loc = IDENTIFIER (method | field | classDef)*
+   : LIBRARY name = IDENTIFIER COLON LOCATION loc = IDENTIFIER libraryImport* (method | field | classDef)*
    ;
 
 file

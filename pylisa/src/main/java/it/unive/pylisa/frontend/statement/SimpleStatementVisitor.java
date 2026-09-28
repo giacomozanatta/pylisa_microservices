@@ -33,6 +33,7 @@ import it.unive.pylisa.cfg.expression.PyAccessInstanceGlobal;
 import it.unive.pylisa.cfg.expression.PyAssign;
 import it.unive.pylisa.cfg.expression.TupleCreation;
 import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyAssert;
 import it.unive.pylisa.cfg.statement.PyNameRef;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
 import it.unive.pylisa.program.PyClassUnit;
@@ -205,16 +206,19 @@ public final class SimpleStatementVisitor {
 		return support.rejectUnsupported(pctx);
 	}
 
-	public Expression visitAssert_stmt(
+	/**
+	 * Translates {@code assert condition[, message]}. Only the condition takes
+	 * part in the translation: the message is evaluated by Python only when the
+	 * assertion fails, and only affects the raised exception.
+	 *
+	 * @param pctx the parsed statement
+	 *
+	 * @return the assertion
+	 */
+	public Statement visitAssert_stmt(
 			Assert_stmtContext pctx) {
-		return new UnresolvedCall(
-				ctx.currentCFG(),
-				support.getLocation(pctx),
-				CallType.STATIC,
-				"assert",
-				Program.PROGRAM_NAME,
-				LeftToRightEvaluation.INSTANCE,
-				ctx.stmt().visitTestlist(pctx.testlist()).toArray(new Expression[pctx.testlist().test().size()]));
+		Expression condition = ctx.expr().visitTest(pctx.testlist().test(0));
+		return new PyAssert(ctx.currentCFG(), support.getLocation(pctx), condition);
 	}
 
 	public void declareAssignedNames(

@@ -1,0 +1,117 @@
+package it.unive.pylisa.checks;
+
+/**
+ * The known ways in which the Python analysis may miss executions of the
+ * analysed program. While any of them applies, results are best-effort: a
+ * fact the analysis reports holds for the executions it models, but some real
+ * executions may not be modelled.
+ */
+public enum KnownGap {
+
+	/**
+	 * In {@code a.b(x)}, {@code a} is always passed as the first argument, also
+	 * when {@code b} is a function stored in an attribute of {@code a} rather
+	 * than a method of its class.
+	 */
+	RECEIVER_CHOSEN_BY_SYNTAX("a.b(x) always passes a as first argument, also when b is a function stored on a"),
+
+	/**
+	 * Reading a method through an object yields the plain function, without
+	 * the object: a method stored in a variable and called later is called
+	 * without its receiver.
+	 */
+	NO_BOUND_METHODS("reading a method through an object loses the object it is bound to"),
+
+	/**
+	 * Functions are identified by their qualified name: when a function is
+	 * defined twice, only the first definition is analysed.
+	 */
+	FUNCTIONS_IDENTIFIED_BY_NAME("a function defined twice under the same name is analysed with its first body only"),
+
+	/**
+	 * The arguments of a call may be evaluated more than once, so their side
+	 * effects may be analysed more than once.
+	 */
+	ARGUMENTS_EVALUATED_REPEATEDLY("call arguments may be evaluated more than once"),
+
+	/**
+	 * Calls to code the analysis does not know return an unknown value and are
+	 * assumed not to modify anything.
+	 */
+	UNKNOWN_CALLS_HAVE_NO_EFFECT("calls to unknown code are assumed to modify nothing"),
+
+	/**
+	 * Attributes are looked up breadth-first among the ancestors of a class,
+	 * not in method resolution order, and {@code super()} goes to the first
+	 * base of the class instead of the next class in the method resolution
+	 * order of the receiver.
+	 */
+	NO_METHOD_RESOLUTION_ORDER("attribute lookup and super() ignore Python's method resolution order"),
+
+	/**
+	 * Decorators the analysis does not know are assumed to return the decorated
+	 * function unchanged.
+	 */
+	UNKNOWN_DECORATORS_ARE_IDENTITY("unknown decorators are assumed to return the decorated function unchanged"),
+
+	/**
+	 * Writes to attributes whose name is only known at run time
+	 * ({@code setattr}, {@code __dict__}, {@code vars()}) are not modelled.
+	 */
+	DYNAMIC_ATTRIBUTE_WRITES_IGNORED("writes to attributes named at run time are not modelled"),
+
+	/**
+	 * Default values of parameters are evaluated at every call instead of once
+	 * when the function is defined, so mutable defaults are not shared between
+	 * calls.
+	 */
+	DEFAULTS_EVALUATED_PER_CALL("default parameter values are evaluated at each call instead of once"),
+
+	/**
+	 * Functions capture the values of the variables of enclosing functions,
+	 * not the variables themselves, so later changes to those variables are
+	 * not seen.
+	 */
+	CLOSURES_CAPTURE_VALUES("closures capture values instead of variables"),
+
+	/**
+	 * Callbacks registered with a library, to be invoked later by the library
+	 * (for example by an event loop), are recorded but never executed.
+	 */
+	CALLBACKS_NOT_RUN("callbacks registered with libraries are never executed"),
+
+	/**
+	 * Exception handlers are not modelled: the body of a {@code try} block is
+	 * analysed as if no exception could be caught.
+	 */
+	EXCEPTION_HANDLERS_IGNORED("try/except handlers are not modelled"),
+
+	/**
+	 * Coroutines are analysed as ordinary functions that run to completion
+	 * when called.
+	 */
+	COROUTINES_RUN_SYNCHRONOUSLY("async functions are analysed as if they ran synchronously when called"),
+
+	/**
+	 * Some expressions are parsed incorrectly: the {@code %} operator may drop
+	 * the rest of the line, chains of arithmetic operators associate to the
+	 * right, and adjacent string literals keep only the first one.
+	 */
+	PARSING_DEFECTS("some operator chains and adjacent string literals are parsed incorrectly");
+
+	private final String description;
+
+	KnownGap(
+			String description) {
+		this.description = description;
+	}
+
+	/**
+	 * Yields a one-line description of the gap.
+	 *
+	 * @return the description
+	 */
+	public String getDescription() {
+		return description;
+	}
+}

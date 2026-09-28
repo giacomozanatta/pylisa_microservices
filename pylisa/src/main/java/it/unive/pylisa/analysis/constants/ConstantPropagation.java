@@ -2,9 +2,13 @@ package it.unive.pylisa.analysis.constants;
 
 import it.unive.lisa.analysis.*;
 import it.unive.lisa.analysis.nonrelational.value.BaseNonRelationalValueDomain;
+import it.unive.lisa.analysis.nonrelational.value.ValueEnvironment;
 import it.unive.lisa.analysis.value.ValueLattice;
+import it.unive.lisa.lattices.Satisfiability;
 import it.unive.lisa.program.SyntheticLocation;
+import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.ProgramPoint;
+import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.program.type.Float32Type;
 import it.unive.lisa.program.type.Float64Type;
 import it.unive.lisa.program.type.Int16Type;
@@ -269,6 +273,8 @@ public class ConstantPropagation
 			ProgramPoint pp,
 			SemanticOracle oracle) {
 		BinaryOperator operator = expression.getOperator();
+		if (ConstantOperations.handles(operator))
+			return evalExactly(expression, left, right);
 		if (operator instanceof ArithmeticOperator) {
 			if (left.isTop() || right.isTop() || !left.constant.getStaticType().isNumericType()
 					|| !right.constant.getStaticType().isNumericType())
@@ -467,6 +473,36 @@ public class ConstantPropagation
 		return c;
 	}
 
+	/**
+	 * Evaluates an operator handled by {@link ConstantOperations}: the result is
+	 * the concrete one when both operands are constants and it can be
+	 * computed, and top otherwise.
+	 *
+	 * @param expression the expression being evaluated
+	 * @param left       the abstract value of the first operand
+	 * @param right      the abstract value of the second operand
+	 *
+	 * @return the abstract value of the expression
+	 */
+	private ConstantPropagation evalExactly(
+			BinaryExpression expression,
+			ConstantPropagation left,
+			ConstantPropagation right) {
+		if (left.isBottom() || right.isBottom())
+			return BOTTOM;
+		if (left.isTop() || right.isTop())
+			return TOP;
+		BinaryOperator operator = expression.getOperator();
+		CodeLocation location = expression.getCodeLocation();
+		if (ConstantOperations.isPredicate(operator))
+			return ConstantOperations.test(operator, left.constant, right.constant)
+					.map(value -> new ConstantPropagation(new Constant(BoolType.INSTANCE, value, location)))
+					.orElse(TOP);
+		return ConstantOperations.compute(operator, left.constant, right.constant)
+				.map(value -> new ConstantPropagation(new Constant(StringType.INSTANCE, value, location)))
+				.orElse(TOP);
+	}
+
 	private ConstantPropagation stringConcat(
 			ConstantPropagation left,
 			ConstantPropagation right,
@@ -656,5 +692,105 @@ public class ConstantPropagation
 			Identifier source)
 			throws SemanticException {
 		return null;
+	}
+
+	@Override
+	public Satisfiability satisfiesAbstractValue(
+			ConstantPropagation value,
+			ProgramPoint pp,
+			SemanticOracle oracle) {
+		if (value.isTop() || value.isBottom() || !(value.constant.getValue() instanceof Boolean))
+			return Satisfiability.UNKNOWN;
+		return satisfiability((Boolean) value.constant.getValue());
+	}
+
+	@Override
+	public Satisfiability satisfiesBinaryExpression(
+			BinaryExpression expression,
+			ConstantPropagation left,
+			ConstantPropagation right,
+			ProgramPoint pp,
+			SemanticOracle oracle) {
+		BinaryOperator operator = expression.getOperator();
+		if (!ConstantOperations.isPredicate(operator) || left.isTop() || right.isTop())
+			return Satisfiability.UNKNOWN;
+		return ConstantOperations.test(operator, left.constant, right.constant)
+				.map(ConstantPropagation::satisfiability)
+				.orElse(Satisfiability.UNKNOWN);
+	}
+
+	@Override
+	public ValueEnvironment<ConstantPropagation> assumeBinaryExpression(
+			ValueEnvironment<ConstantPropagation> environment,
+			BinaryExpression expression,
+			ProgramPoint src,
+			ProgramPoint dest,
+			SemanticOracle oracle)
+			throws SemanticException {
+		return discardIfFalse(environment, expression, src, oracle);
+	}
+
+	@Override
+	public ValueEnvironment<ConstantPropagation> assumeUnaryExpression(
+			ValueEnvironment<ConstantPropagation> environment,
+			UnaryExpression expression,
+			ProgramPoint src,
+			ProgramPoint dest,
+			SemanticOracle oracle)
+			throws SemanticException {
+		return discardIfFalse(environment, expression, src, oracle);
+	}
+
+	@Override
+	public ValueEnvironment<ConstantPropagation> assumeConstant(
+			ValueEnvironment<ConstantPropagation> environment,
+			Constant expression,
+			ProgramPoint src,
+			ProgramPoint dest,
+			SemanticOracle oracle)
+			throws SemanticException {
+		return discardIfFalse(environment, expression, src, oracle);
+	}
+
+	@Override
+	public ValueEnvironment<ConstantPropagation> assumeIdentifier(
+			ValueEnvironment<ConstantPropagation> environment,
+			Identifier expression,
+			ProgramPoint src,
+			ProgramPoint dest,
+			SemanticOracle oracle)
+			throws SemanticException {
+		return discardIfFalse(environment, expression, src, oracle);
+	}
+
+	/**
+	 * Refines an environment with a condition that is assumed to hold: if the
+	 * condition is certainly false, no execution can take the guarded path and
+	 * the environment becomes bottom; otherwise it is left unchanged, which is
+	 * always a sound over-approximation.
+	 *
+	 * @param environment the environment before the condition
+	 * @param condition   the condition assumed to hold
+	 * @param pp          the program point where the condition is evaluated
+	 * @param oracle      the oracle for inter-domain queries
+	 *
+	 * @return the refined environment
+	 *
+	 * @throws SemanticException if the condition cannot be evaluated
+	 */
+	private ValueEnvironment<ConstantPropagation> discardIfFalse(
+			ValueEnvironment<ConstantPropagation> environment,
+			ValueExpression condition,
+			ProgramPoint pp,
+			SemanticOracle oracle)
+			throws SemanticException {
+		if (satisfies(environment, condition, pp, oracle) == Satisfiability.NOT_SATISFIED)
+			return environment.bottom();
+		return environment;
+	}
+
+	private static Satisfiability satisfiability(
+			boolean value) {
+		return value ? Satisfiability.SATISFIED : Satisfiability.NOT_SATISFIED;
 	}
 }

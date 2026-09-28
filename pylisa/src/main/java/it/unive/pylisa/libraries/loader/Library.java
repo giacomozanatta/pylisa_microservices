@@ -22,6 +22,7 @@ import it.unive.pylisa.program.ModuleUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,6 +32,7 @@ public class Library {
 	private final Collection<Method> methods = new HashSet<>();
 	private final Collection<Field> fields = new HashSet<>();
 	private final Collection<ClassDef> classes = new ArrayList<>();
+	private final List<String> imports = new ArrayList<>();
 
 	public Library(
 			String name,
@@ -53,6 +55,17 @@ public class Library {
 
 	public Collection<Field> getFields() {
 		return fields;
+	}
+
+	/**
+	 * Yields the names of the modules this library imports, in the order they
+	 * must be imported before the library itself, as the import statements at
+	 * the top of a Python module are executed before its body.
+	 *
+	 * @return the names of the imported modules
+	 */
+	public List<String> getImports() {
+		return imports;
 	}
 
 	public Collection<ClassDef> getClasses() {

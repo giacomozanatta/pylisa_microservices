@@ -229,7 +229,7 @@ public final class StatementVisitor extends Python3ParserBaseVisitor<Object> {
 	}
 
 	@Override
-	public Expression visitAssert_stmt(
+	public Statement visitAssert_stmt(
 			Assert_stmtContext c) {
 		return simple.visitAssert_stmt(c);
 	}

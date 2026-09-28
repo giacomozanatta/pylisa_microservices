@@ -56,6 +56,10 @@ LOCATION
    : 'location'
    ;
 
+IMPORTS
+   : 'imports'
+   ;
+
 TYPE
    : 'type'
    ;

@@ -3,6 +3,7 @@ package it.unive.pylisa.libraries;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.ClassDefContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.FieldContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.FileContext;
+import it.unive.pylisa.antlr.LibraryDefinitionParser.LibraryImportContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.LibraryContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.LibtypeContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.LisatypeContext;
@@ -137,6 +138,8 @@ public class LibrarySpecificationParser extends LibraryDefinitionParserBaseVisit
 			LibraryContext ctx) {
 		Library lib = new Library(ctx.name.getText(), ctx.loc.getText());
 		currentLibrary = lib;
+		for (LibraryImportContext imported : ctx.libraryImport())
+			lib.getImports().add(imported.name.getText());
 		for (MethodContext mtd : ctx.method())
 			lib.getMethods().add(visitMethod(mtd));
 

@@ -7,12 +7,15 @@ import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.pylisa.cfg.PyCFG;
 import it.unive.pylisa.cfg.type.PyModuleType;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
+import it.unive.pylisa.libraries.loader.Library;
 import it.unive.pylisa.program.ModuleUnit;
 import it.unive.pylisa.program.UnknownModuleUnit;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -39,6 +42,12 @@ public class PythonModuleImportManager {
 	private final Map<Path, ModuleUnit> fileToUnit = new HashMap<>();
 	private final Set<String> resolvedModules = new HashSet<>();
 	private final Set<String> unknownModules = new HashSet<>();
+
+	/**
+	 * The library modules whose dependencies are being imported, used to
+	 * break import cycles between libraries.
+	 */
+	private final Set<String> importingLibraries = new HashSet<>();
 	// Modules listed via --excluded on the CLI. Any importModule(name) call
 	// for a name in this set short-circuits to createUnknownModule and never
 	// parses the body. Use this to neutralise analyzer-hostile leaves such
@@ -196,7 +205,9 @@ public class PythonModuleImportManager {
 			}
 		}
 
-		if (unit == null && LibrarySpecificationProvider.getLibraryUnit(moduleName) != null) {
+		Library library = LibrarySpecificationProvider.getLibraryUnit(moduleName);
+		if (unit == null && library != null) {
+			importDependencies(moduleName, library);
 			unit = LibrarySpecificationProvider.importPythonModule(program, moduleName, init);
 			if (unit != null)
 				resolvedModules.add(moduleName);
@@ -223,6 +234,38 @@ public class PythonModuleImportManager {
 		// explicit import.
 		registerUnknownAncestors(moduleName);
 		return unit;
+	}
+
+	/**
+	 * Imports what Python imports before the body of a library module: first
+	 * its parent packages that are libraries too (importing {@code a.b} runs
+	 * the initialization of package {@code a} first), then the modules the
+	 * library itself imports. A module that is already being imported (an
+	 * import cycle) is skipped: as in Python, the partially initialized module
+	 * is used.
+	 *
+	 * @param moduleName the name of the library module
+	 * @param library    the library specification of the module
+	 */
+	private void importDependencies(
+			String moduleName,
+			Library library) {
+		if (!importingLibraries.add(moduleName))
+			return;
+		try {
+			List<String> dependencies = new ArrayList<>();
+			for (int dot = moduleName.indexOf('.'); dot != -1; dot = moduleName.indexOf('.', dot + 1)) {
+				String parent = moduleName.substring(0, dot);
+				if (LibrarySpecificationProvider.getLibraryUnit(parent) != null)
+					dependencies.add(parent);
+			}
+			dependencies.addAll(library.getImports());
+			for (String dependency : dependencies)
+				if (!importingLibraries.contains(dependency))
+					importModule(dependency);
+		} finally {
+			importingLibraries.remove(moduleName);
+		}
 	}
 
 	private void registerUnknownAncestors(

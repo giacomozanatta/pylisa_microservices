@@ -1,0 +1,2 @@
+# Native class of each modelled rclpy callable, as "<module>[.<Class>].<callable> <native class>".
+# Callables not listed return an unknown value and have no other effect.
