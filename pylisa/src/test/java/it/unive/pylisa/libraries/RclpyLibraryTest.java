@@ -38,7 +38,7 @@ class RclpyLibraryTest {
 
 	@BeforeAll
 	static void translate() throws Exception {
-		program = new PyFrontend("ros-tests/state/import_node.py", false).toLiSAProgram(true);
+		program = new PyFrontend("ros-tests/state/libraries/import_rclpy.py", false).toLiSAProgram(true);
 	}
 
 	@Test

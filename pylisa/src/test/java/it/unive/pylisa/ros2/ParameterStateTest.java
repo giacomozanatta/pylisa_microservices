@@ -18,11 +18,11 @@ import org.junit.jupiter.params.provider.EnumSource;
  */
 class ParameterStateTest {
 
-	private static final String PROGRAM = "ros-tests/state/us2_param_topic.py";
+	private static final String PROGRAM = "ros-tests/state/parameters/topic_from_parameter.py";
 
-	private static final String NODES = "ros-tests/state/us2_param_node.py";
+	private static final String NODES = "ros-tests/state/parameters/node_options.py";
 
-	private static final String SEMANTICS = "ros-tests/state/us2_param_semantics.py";
+	private static final String SEMANTICS = "ros-tests/state/parameters/declaration_rules.py";
 
 	/**
 	 * Analyses the program exercising the rules of rclpy's parameter methods,

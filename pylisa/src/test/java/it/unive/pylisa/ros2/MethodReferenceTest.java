@@ -15,7 +15,7 @@ import org.junit.jupiter.params.provider.EnumSource;
  */
 class MethodReferenceTest {
 
-	private static final String PROGRAM = "ros-tests/state/us0b_bound.py";
+	private static final String PROGRAM = "ros-tests/state/python/method_reference.py";
 
 	@ParameterizedTest
 	@EnumSource(RosConfig.class)

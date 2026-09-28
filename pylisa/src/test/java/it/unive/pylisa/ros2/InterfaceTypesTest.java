@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.EnumSource;
  */
 class InterfaceTypesTest {
 
-	private static final String PROGRAM = "ros-tests/state/us0c_interfaces.py";
+	private static final String PROGRAM = "ros-tests/state/interfaces/message_types.py";
 
 	@ParameterizedTest
 	@EnumSource(RosConfig.class)

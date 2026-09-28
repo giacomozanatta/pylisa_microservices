@@ -20,7 +20,7 @@ class NumbersTest {
 	void arithmeticFollowsPython(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/us0b_numbers.py", config);
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/python/arithmetic.py", config);
 		Map<Integer, AssertionVerdict> notProved = helper.asserts().entrySet().stream()
 				.filter(entry -> entry.getValue() != AssertionVerdict.PROVED)
 				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

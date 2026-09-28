@@ -14,6 +14,6 @@ class IdentityTest {
 	void identityWithNoneIsDecided(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper.analyse("ros-tests/state/us0c_identity.py", config).assertAllProved();
+		RosTestHelper.analyse("ros-tests/state/python/identity.py", config).assertAllProved();
 	}
 }

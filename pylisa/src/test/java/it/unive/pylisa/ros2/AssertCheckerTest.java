@@ -16,7 +16,7 @@ import org.opentest4j.AssertionFailedError;
  */
 class AssertCheckerTest {
 
-	private static final String PROGRAM = "ros-tests/state/assert_basic.py";
+	private static final String PROGRAM = "ros-tests/state/assertions/verdicts.py";
 
 	@ParameterizedTest
 	@EnumSource(RosConfig.class)
@@ -48,7 +48,7 @@ class AssertCheckerTest {
 	void anUndecidedConditionMayFail(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/assert_undecided.py", config);
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/assertions/undecided.py", config);
 		assertEquals(AssertionVerdict.MAY_FAIL, helper.verdict("@may"));
 		assertTrue(helper.after("@may").isReachable());
 		assertTrue(helper.after("@may").errors().contains("builtins.AssertionError"));

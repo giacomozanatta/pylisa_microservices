@@ -32,8 +32,10 @@ class TopicStateTest {
 	private static final String FUTURE = "rclpy.task.Future";
 
 	@ParameterizedTest
-	@ValueSource(strings = { "us2_talker", "us2_ns_relative", "us2_absolute", "us2_private", "us2_kwargs",
-			"us2_two_pubs", "us2_listener", "us2_lambda", "us2_timer", "us2_service_client", "us2_resolve", "us2_composed" })
+	@ValueSource(strings = { "entities/publisher", "entities/relative_name", "entities/absolute_name",
+			"entities/private_name", "entities/keyword_arguments", "entities/two_publishers",
+			"entities/subscription", "entities/subscription_lambda", "entities/timers",
+			"entities/service_and_client", "entities/resolve_name", "entities/node_in_field" })
 	void everyAssertionOnNamesHolds(
 			String program)
 			throws Exception {
@@ -46,7 +48,7 @@ class TopicStateTest {
 	void aPublisherBelongsToItsNodeAndKnowsItsMessageType(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us2_talker.py", config).after("@pub");
+		Point point = RosTestHelper.analyse("ros-tests/state/entities/publisher.py", config).after("@pub");
 		Obj node = point.object("self");
 		Obj publisher = node.ref("pub");
 		assertEquals(PUBLISHER, publisher.type());
@@ -61,7 +63,7 @@ class TopicStateTest {
 	void anEntityCreatedThroughANodeHeldInAFieldBelongsToThatNode(
 			RosConfig config)
 			throws Exception {
-		Obj app = RosTestHelper.analyse("ros-tests/state/us2_composed.py", config).after("@pub").object("self");
+		Obj app = RosTestHelper.analyse("ros-tests/state/entities/node_in_field.py", config).after("@pub").object("self");
 		assertEquals(app.ref("node"), app.ref("pub").ref("$node"));
 	}
 
@@ -70,7 +72,7 @@ class TopicStateTest {
 	void twoPublishersAreTwoObjects(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/us2_two_pubs.py", config);
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/entities/two_publishers.py", config);
 		Obj first = helper.after("@p1").object("a");
 		Point point = helper.after("@p2");
 		Obj second = point.object("b");
@@ -87,7 +89,7 @@ class TopicStateTest {
 	void aSubscriptionStoresItsCallbackMethod(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us2_listener.py", config).after("@sub");
+		Point point = RosTestHelper.analyse("ros-tests/state/entities/subscription.py", config).after("@sub");
 		Obj node = point.object("self");
 		Obj subscription = node.ref("sub");
 		assertEquals(SUBSCRIPTION, subscription.type());
@@ -102,7 +104,7 @@ class TopicStateTest {
 	void aSubscriptionStoresALambdaCallback(
 			RosConfig config)
 			throws Exception {
-		Obj subscription = RosTestHelper.analyse("ros-tests/state/us2_lambda.py", config).after("@sub")
+		Obj subscription = RosTestHelper.analyse("ros-tests/state/entities/subscription_lambda.py", config).after("@sub")
 				.object("sub");
 		Set<String> callback = subscription.fieldTypes("callback");
 		assertEquals(1, callback.size(), callback.toString());
@@ -114,7 +116,7 @@ class TopicStateTest {
 	void aTimerStoresItsPeriodInNanosecondsAndItsCallback(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us2_timer.py", config).after("@t");
+		Point point = RosTestHelper.analyse("ros-tests/state/entities/timers.py", config).after("@t");
 		Obj node = point.object("self");
 		Obj timer = node.ref("t");
 		assertEquals(TIMER, timer.type());
@@ -129,7 +131,7 @@ class TopicStateTest {
 	void servicesAndClientsResolveTheirNameUnderTheNamespace(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/us2_service_client.py", config);
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/entities/service_and_client.py", config);
 		Point atService = helper.after("@srv");
 		Obj node = atService.object("self");
 		Obj service = node.ref("srv");
@@ -149,7 +151,7 @@ class TopicStateTest {
 	void aRequestGivesAFutureWithAnUnknownOutcome(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us2_service_client.py", config).after("@done");
+		Point point = RosTestHelper.analyse("ros-tests/state/entities/service_and_client.py", config).after("@done");
 		Obj future = point.object("fut");
 		assertEquals(FUTURE, future.type());
 		assertEquals(point.object("self").ref("cli"), future.ref("$client"));
@@ -161,7 +163,7 @@ class TopicStateTest {
 	void aGuardConditionStoresItsCallback(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us2_guard.py", config).after("@g");
+		Point point = RosTestHelper.analyse("ros-tests/state/entities/guard_condition.py", config).after("@g");
 		Obj node = point.object("self");
 		Obj guard = node.ref("g");
 		assertEquals(GUARD_CONDITION, guard.type());
@@ -174,7 +176,7 @@ class TopicStateTest {
 	void edgeCasesFollowRclAndRclpy(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/us2_edge.py", config);
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/entities/edge_cases.py", config);
 		// ~a expands to the fully qualified name followed by a; a period of
 		// -0.1 ns truncates to 0
 		helper.assertAllProved();

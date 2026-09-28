@@ -17,7 +17,7 @@ import org.opentest4j.AssertionFailedError;
  */
 class RosTestHelperSmokeTest {
 
-	private static final String PROGRAM = "ros-tests/state/smoke.py";
+	private static final String PROGRAM = "ros-tests/state/helper/smoke.py";
 
 	@ParameterizedTest
 	@EnumSource(RosConfig.class)

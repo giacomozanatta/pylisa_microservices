@@ -24,7 +24,7 @@ class NodeStateTest {
 	void aNodeCreatedByCreateNodeHasItsNameAndTheRootNamespace(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper.analyse("ros-tests/state/us1_create_node.py", config).assertAllProved();
+		RosTestHelper.analyse("ros-tests/state/nodes/create_node.py", config).assertAllProved();
 	}
 
 	@ParameterizedTest
@@ -32,7 +32,7 @@ class NodeStateTest {
 	void aNodeCreatedByTheConstructorHasItsNameAndNamespace(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper.analyse("ros-tests/state/us1_node_var.py", config).assertAllProved();
+		RosTestHelper.analyse("ros-tests/state/nodes/constructor.py", config).assertAllProved();
 	}
 
 	@ParameterizedTest
@@ -40,7 +40,7 @@ class NodeStateTest {
 	void aSubclassInitializesItselfAsANode(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/us1_subclass_ns.py", config);
+		RosTestHelper helper = RosTestHelper.analyse("ros-tests/state/nodes/subclass_namespace.py", config);
 		helper.assertAllProved();
 		Obj node = helper.after("@super").object("self");
 		assertTrue(node.type().contains(".Talker@"), node.type());
@@ -54,7 +54,7 @@ class NodeStateTest {
 	void everyNodePublishesParameterEvents(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us1_builtins.py", config).after("@node");
+		Point point = RosTestHelper.analyse("ros-tests/state/nodes/builtin_entities.py", config).after("@node");
 		Set<Obj> publishers = entitiesOf(point, PUBLISHER, point.object("n"));
 		assertEquals(1, publishers.size(), publishers.toString());
 		Obj events = publishers.iterator().next();
@@ -68,7 +68,7 @@ class NodeStateTest {
 	void everyNodeOffersTheParameterServicesUnlessDisabled(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us1_builtins.py", config).after("@node2");
+		Point point = RosTestHelper.analyse("ros-tests/state/nodes/builtin_entities.py", config).after("@node2");
 		Set<Object> names = entitiesOf(point, SERVICE, point.object("n")).stream()
 				.map(service -> ((Val.Exact) service.field("service_name")).value())
 				.collect(Collectors.toSet());
@@ -83,7 +83,7 @@ class NodeStateTest {
 	void addingANodeToAnExecutorRecordsTheExecutor(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us1_executor.py", config).after("@add");
+		Point point = RosTestHelper.analyse("ros-tests/state/nodes/executors.py", config).after("@add");
 		assertEquals(point.object("ex"), point.object("n").ref("executor"));
 	}
 
@@ -92,7 +92,7 @@ class NodeStateTest {
 	void spinningANodeUsesTheGlobalExecutor(
 			RosConfig config)
 			throws Exception {
-		Point point = RosTestHelper.analyse("ros-tests/state/us1_executor.py", config).after("@spin");
+		Point point = RosTestHelper.analyse("ros-tests/state/nodes/executors.py", config).after("@spin");
 		assertEquals("rclpy.executors.SingleThreadedExecutor", point.object("m").ref("executor").type());
 	}
 

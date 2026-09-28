@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.EnumSource;
  */
 class StringLiteralTest {
 
-	private static final String PROGRAM = "ros-tests/state/us0b_strings.py";
+	private static final String PROGRAM = "ros-tests/state/python/string_literals.py";
 
 	@ParameterizedTest
 	@EnumSource(RosConfig.class)

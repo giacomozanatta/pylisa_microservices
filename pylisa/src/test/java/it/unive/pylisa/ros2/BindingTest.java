@@ -15,6 +15,6 @@ class BindingTest {
 	void argumentsAreBoundAsInPython(
 			RosConfig config)
 			throws Exception {
-		RosTestHelper.analyse("ros-tests/state/us0b_binding.py", config).assertAllProved();
+		RosTestHelper.analyse("ros-tests/state/python/argument_binding.py", config).assertAllProved();
 	}
 }
