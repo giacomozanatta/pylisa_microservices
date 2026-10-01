@@ -14,10 +14,6 @@ import it.unive.lisa.program.cfg.Parameter;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.NaryExpression;
-import it.unive.lisa.program.cfg.statement.Statement;
-import it.unive.lisa.program.cfg.statement.call.CFGCall;
-import it.unive.lisa.program.cfg.statement.call.Call;
-import it.unive.lisa.program.cfg.statement.call.NativeCall;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.GlobalVariable;
 import it.unive.lisa.symbolic.value.PushAny;
@@ -445,33 +441,6 @@ public final class CallTargets {
 			else
 				targets.add(new Unresolved(method + " of " + classType + " may be a " + describe(type)));
 		return targets;
-	}
-
-	/**
-	 * Builds the synthetic call that applies a function target at a call
-	 * site, linked to the site so that its errors belong to it.
-	 *
-	 * @param target    the target
-	 * @param site      the call site
-	 * @param arguments the argument expressions
-	 *
-	 * @return the call, or {@code null} if the target is not a function
-	 */
-	static Call call(
-			Target target,
-			Statement site,
-			Expression[] arguments) {
-		Call call;
-		if (target instanceof Native natives)
-			call = new NativeCall(site.getCFG(), site.getLocation(), Call.CallType.STATIC, "", "$call",
-					List.of(natives.cfg()), arguments);
-		else if (target instanceof Python python)
-			call = new CFGCall(site.getCFG(), site.getLocation(), Call.CallType.STATIC, "", "$call",
-					List.of(python.cfg()), arguments);
-		else
-			return null;
-		call.setParentStatement(site);
-		return call;
 	}
 
 	/**

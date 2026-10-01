@@ -9,7 +9,9 @@ import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.lattices.ExpressionSet;
 import it.unive.lisa.program.cfg.CodeMember;
 import it.unive.lisa.program.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.statement.call.CFGCall;
 import it.unive.lisa.program.cfg.statement.call.Call;
+import it.unive.lisa.program.cfg.statement.call.NativeCall;
 import it.unive.lisa.program.cfg.statement.call.ResolvedCall;
 import it.unive.lisa.program.cfg.statement.evaluation.LeftToRightEvaluation;
 import it.unive.lisa.symbolic.SymbolicExpression;
@@ -83,10 +85,18 @@ public class PyResolvedCall extends Call implements ResolvedCall {
 	private Expression application(
 			CallTargets.Target target,
 			Expression[] arguments) {
-		if (!(target instanceof CallTargets.Instantiation instantiation))
-			return CallTargets.call(target, site, arguments);
-		PyInstantiation application = new PyInstantiation(site.getCFG(), site.getLocation(), instantiation.type(),
-				site.instantiationOperands());
+		Expression application;
+		if (target instanceof CallTargets.Instantiation instantiation)
+			application = new PyInstantiation(site.getCFG(), site.getLocation(), instantiation.type(),
+					site.instantiationOperands());
+		else if (target instanceof CallTargets.Native natives)
+			application = new NativeCall(site.getCFG(), site.getLocation(), Call.CallType.STATIC, "", "$call",
+					List.of(natives.cfg()), arguments);
+		else if (target instanceof CallTargets.Python python)
+			application = new CFGCall(site.getCFG(), site.getLocation(), Call.CallType.STATIC, "", "$call",
+					List.of(python.cfg()), arguments);
+		else
+			return null;
 		application.setParentStatement(site);
 		return application;
 	}
@@ -152,7 +162,7 @@ public class PyResolvedCall extends Call implements ResolvedCall {
 			StatementStore<A> expressions)
 			throws SemanticException {
 		AnalysisState<A> result = state.bottomExecution();
-		for (AnalysisState<A> each : applyEach(interprocedural, state, params, expressions))
+		for (AnalysisState<A> each : applyEach(interprocedural, state, params, expressions, true))
 			result = result.lub(each);
 		return result;
 	}
@@ -166,6 +176,11 @@ public class PyResolvedCall extends Call implements ResolvedCall {
 	 * @param state           the state the call is applied to
 	 * @param params          the values of the operands of the call
 	 * @param expressions     the states after each operand
+	 * @param noResultUnknown whether a function or a native that is not a
+	 *                            library model and leaves no result gives an
+	 *                            unknown result, as for the value of a call;
+	 *                            the creation of an object keeps the empty
+	 *                            result, where no object is created yet
 	 *
 	 * @return the state after each target, in the order of the targets
 	 *
@@ -175,11 +190,13 @@ public class PyResolvedCall extends Call implements ResolvedCall {
 			InterproceduralAnalysis<A, D> interprocedural,
 			AnalysisState<A> state,
 			ExpressionSet[] params,
-			StatementStore<A> expressions)
+			StatementStore<A> expressions,
+			boolean noResultUnknown)
 			throws SemanticException {
 		List<AnalysisState<A>> results = new ArrayList<>();
 		for (int i = 0; i < targets.size(); i++)
-			results.add(apply(targets.get(i), applications.get(i), interprocedural, state, params, expressions));
+			results.add(apply(targets.get(i), applications.get(i), interprocedural, state, params, expressions,
+					noResultUnknown));
 		return results;
 	}
 
@@ -189,7 +206,8 @@ public class PyResolvedCall extends Call implements ResolvedCall {
 			InterproceduralAnalysis<A, D> interprocedural,
 			AnalysisState<A> state,
 			ExpressionSet[] params,
-			StatementStore<A> expressions)
+			StatementStore<A> expressions,
+			boolean noResultUnknown)
 			throws SemanticException {
 		if (application == null)
 			return unknownResult(interprocedural, state, params);
@@ -201,7 +219,7 @@ public class PyResolvedCall extends Call implements ResolvedCall {
 		// is kept as it is; any other callee with no result (a Python function
 		// whose recursion is still being computed, a native that is not such a
 		// model) is given an unknown one
-		if (!result.isBottom() || target instanceof CallTargets.Native natives
+		if (!noResultUnknown || !result.isBottom() || target instanceof CallTargets.Native natives
 				&& LibraryNative.class.isAssignableFrom(natives.implementation()))
 			return result;
 		return unknownResult(interprocedural, state, params);

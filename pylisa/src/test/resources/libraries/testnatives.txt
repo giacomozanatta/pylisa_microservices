@@ -15,6 +15,9 @@ library testnatives:
     method echo: it.unive.pylisa.testnatives.EchoNative
         type it.unive.lisa.type.Untyped::INSTANCE
         param value type it.unive.lisa.type.Untyped::INSTANCE
+    method tick: it.unive.pylisa.testnatives.TickNative
+        type it.unive.lisa.type.Untyped::INSTANCE
+        param value type it.unive.lisa.type.Untyped::INSTANCE
     method marked_and_plain: it.unive.pylisa.testnatives.MarkedAndPlainNative
         type it.unive.lisa.type.Untyped::INSTANCE
     method joined_marked_first: it.unive.pylisa.testnatives.JoinedMarkedFirstNative

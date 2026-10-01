@@ -88,6 +88,28 @@ final class CallGraphTestSupport {
 		}
 
 		/**
+		 * Yields the call sites of the method with the given name of the
+		 * class with the given name, whose full name carries the location of
+		 * the class, as in {@code __main__.Sub@10:0.__init__::$call}.
+		 *
+		 * @param className the name of the class
+		 * @param method    the name of the method
+		 *
+		 * @return the call sites
+		 */
+		Collection<Call> sitesOfMethod(
+				String className,
+				String method) {
+			List<Call> sites = new ArrayList<>();
+			for (CallGraphNode node : callGraph.getNodes()) {
+				String name = node.getCodeMember().getDescriptor().getFullName();
+				if (name.contains("." + className + "@") && name.endsWith("." + method + "::$call"))
+					sites.addAll(callGraph.getCallSites(node.getCodeMember()));
+			}
+			return sites;
+		}
+
+		/**
 		 * Yields every call site the call graph lists, for any member.
 		 *
 		 * @return the call sites
