@@ -60,6 +60,12 @@ public class PyClassUnit extends ClassUnit {
 	private final String baseName;
 
 	/**
+	 * Whether some base class of this class, as written in its definition,
+	 * could not be resolved to a class of the program.
+	 */
+	private boolean unresolvedBase;
+
+	/**
 	 * Builds a Python class unit. The {@code name} is taken as both the
 	 * identity name and the Python-visible base name — use this overload for
 	 * classes coming from library specs (one def-site per name).
@@ -108,6 +114,30 @@ public class PyClassUnit extends ClassUnit {
 	 *
 	 * @return the base name
 	 */
+	/**
+	 * Records that some base class of this class could not be resolved, so
+	 * that its known ancestors may not be all of them.
+	 */
+	public void markUnresolvedBase() {
+		unresolvedBase = true;
+	}
+
+	/**
+	 * Yields whether every ancestor of this class is known: no base class of
+	 * this class, nor of its known ancestors, was left unresolved. Only then is
+	 * a failed subclass test certain.
+	 *
+	 * @return {@code true} if the whole hierarchy is known
+	 */
+	public boolean hasKnownHierarchy() {
+		if (unresolvedBase)
+			return false;
+		for (CompilationUnit ancestor : getImmediateAncestors())
+			if (ancestor instanceof PyClassUnit pyAncestor && !pyAncestor.hasKnownHierarchy())
+				return false;
+		return true;
+	}
+
 	public String getBaseName() {
 		return baseName;
 	}

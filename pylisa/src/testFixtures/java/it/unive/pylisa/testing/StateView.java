@@ -8,13 +8,16 @@ import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.lattices.FunctionalLattice;
 import it.unive.lisa.lattices.SimpleAbstractState;
 import it.unive.lisa.lattices.heap.allocations.AllocationSite;
-import it.unive.lisa.program.SyntheticLocation;
+import it.unive.lisa.program.SourceCodeLocation;
+import it.unive.lisa.program.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.Statement;
+import it.unive.lisa.program.cfg.statement.call.Call;
+import it.unive.lisa.program.cfg.statement.call.NativeCall;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.heap.AccessChild;
 import it.unive.lisa.symbolic.heap.HeapDereference;
 import it.unive.lisa.symbolic.heap.HeapReference;
-import it.unive.lisa.symbolic.value.Constant;
 import it.unive.lisa.symbolic.value.HeapLocation;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.lisa.symbolic.value.OutOfScopeIdentifier;
@@ -22,6 +25,11 @@ import it.unive.lisa.symbolic.value.Variable;
 import it.unive.lisa.type.ReferenceType;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
+import it.unive.pylisa.analysis.Val;
+import it.unive.pylisa.analysis.ValueReader;
+import it.unive.pylisa.libraries.natives.AssumptionBranch;
+import it.unive.pylisa.program.PySyntheticLocation;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -111,6 +119,100 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 	}
 
 	/**
+	 * Yields the errors that may have been raised by the time this point is
+	 * reached, each with the call that raised it. Errors the analysis smashed
+	 * together by type have no call.
+	 *
+	 * @return the errors
+	 */
+	Set<ErrorSite> errorSites() {
+		Set<ErrorSite> sites = new HashSet<>();
+		Set<AnalysisState.Error> raised = state.getErrors().getKeys();
+		if (raised != null)
+			for (AnalysisState.Error error : raised) {
+				Statement thrower = error.getThrower();
+				String call = calleeOf(thrower);
+				int line = thrower != null && thrower.getLocation() instanceof SourceCodeLocation source
+						? source.getLine()
+						: -1;
+				sites.add(new ErrorSite(error.getType().toString(), call, line));
+			}
+		Set<Type> smashed = state.getSmashedErrors().getKeys();
+		if (smashed != null)
+			smashed.forEach(type -> sites.add(new ErrorSite(type.toString(), null, -1)));
+		return sites;
+	}
+
+	/**
+	 * Yields, for each error of a type raised on a line, the assumptions the
+	 * branch that raised it depends on: empty for an error raised whatever
+	 * the assumptions.
+	 */
+	Set<Set<String>> errorMarks(
+			String type,
+			int line) {
+		Set<Set<String>> marks = new HashSet<>();
+		Set<AnalysisState.Error> raised = state.getErrors().getKeys();
+		if (raised != null)
+			for (AnalysisState.Error error : raised) {
+				Statement thrower = error.getThrower();
+				if (error.getType().toString().equals(type) && thrower != null
+						&& thrower.getLocation() instanceof SourceCodeLocation source && source.getLine() == line)
+					marks.add(thrower instanceof AssumptionBranch branch ? branch.assumptions() : Set.of());
+			}
+		return marks;
+	}
+
+	/**
+	 * Yields whether every raised error has a thrower that is a statement of
+	 * its CFG, or an expression whose chain of parent statements ends at one.
+	 */
+	boolean everyErrorRaisedWithinProgram() {
+		Set<AnalysisState.Error> raised = state.getErrors().getKeys();
+		if (raised == null)
+			return true;
+		for (AnalysisState.Error error : raised)
+			if (!chainsToProgram(error.getThrower()))
+				return false;
+		return true;
+	}
+
+	private static boolean chainsToProgram(
+			Statement thrower) {
+		Statement current = thrower;
+		while (current instanceof Expression expression && expression.getParentStatement() != null)
+			current = expression.getParentStatement();
+		Statement root = current;
+		// identity, not equality: a synthetic node may equal a program node
+		return root != null && root.getCFG() != null
+				&& root.getCFG().getNodes().stream().anyMatch(node -> node == root);
+	}
+
+	/**
+	 * Names what a statement that raised an error calls: the callees of a
+	 * call (such as {@code mylib.Widget::update}), or the
+	 * construct itself.
+	 */
+	private static String calleeOf(
+			Statement thrower) {
+		if (thrower instanceof AssumptionBranch branch)
+			return calleeOf(branch.getParentStatement());
+		if (thrower instanceof NativeCall call && !call.getTargets().isEmpty())
+			return call.getTargets().stream()
+					// a Python callable is a unit whose code is its $call member
+					.map(target -> "$call".equals(target.getDescriptor().getName())
+							? target.getDescriptor().getUnit().getName()
+							: target.getDescriptor().getFullName())
+					.sorted()
+					.collect(Collectors.joining("|"));
+		if (thrower instanceof Call call)
+			return call.getFullTargetName();
+		if (thrower instanceof NaryExpression expression)
+			return expression.getConstructName();
+		return String.valueOf(thrower);
+	}
+
+	/**
 	 * Finds the program variable with the given name: a local variable of the
 	 * function this point belongs to, or else a global of the {@code __main__}
 	 * module, or else the only global of any module with that name.
@@ -145,7 +247,7 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 	 */
 	Set<HeapLocation> objectsPointedBy(
 			SymbolicExpression reference) {
-		return rewrite(new HeapDereference(Untyped.INSTANCE, reference, SyntheticLocation.INSTANCE)).stream()
+		return rewrite(new HeapDereference(Untyped.INSTANCE, reference, PySyntheticLocation.INSTANCE)).stream()
 				.filter(HeapLocation.class::isInstance)
 				.map(HeapLocation.class::cast)
 				.collect(Collectors.toCollection(LinkedHashSet::new));
@@ -156,7 +258,7 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 	 * each with a reference that points to it.
 	 *
 	 * @param typeName the name of the type, such as
-	 *                     {@code rclpy.publisher.Publisher}
+	 *                     {@code mylib.Widget}
 	 *
 	 * @return the references to the objects, by heap location
 	 */
@@ -168,8 +270,20 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 				for (Type type : typesOf(site))
 					if (type.toString().equals(typeName))
 						objects.put(site,
-								new HeapReference(new ReferenceType(type), site, SyntheticLocation.INSTANCE));
+								new HeapReference(new ReferenceType(type), site, PySyntheticLocation.INSTANCE));
 		return objects;
+	}
+
+	/**
+	 * Yields a reference to one object, which denotes that object only.
+	 *
+	 * @param location the heap location of the object
+	 *
+	 * @return the reference
+	 */
+	SymbolicExpression referenceTo(
+			HeapLocation location) {
+		return new HeapReference(new ReferenceType(Untyped.INSTANCE), location, PySyntheticLocation.INSTANCE);
 	}
 
 	/**
@@ -182,19 +296,11 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 	 */
 	Optional<Val> valueOf(
 			SymbolicExpression expression) {
-		Val result = null;
-		for (SymbolicExpression denoted : rewrite(expression)) {
-			Val value;
-			if (denoted instanceof Identifier identifier)
-				value = reader.read(stateComponents().valueState, identifier);
-			else if (denoted instanceof Constant constant)
-				value = Val.exact(constant.getValue());
-			else
-				value = Val.top();
-			if (value != null)
-				result = result == null ? value : result.join(value);
+		try {
+			return reader.valueOf(analysis, state, expression, point);
+		} catch (SemanticException e) {
+			throw new IllegalStateException("Cannot read " + expression + " at " + point.getLocation(), e);
 		}
-		return Optional.ofNullable(result);
 	}
 
 	/**
@@ -214,6 +320,26 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 	}
 
 	/**
+	 * Yields whether the state stores something for an expression: it denotes
+	 * at least one identifier, and the value or the type component holds every
+	 * identifier it denotes. A field never assigned is not stored, while its
+	 * value and its types read as unknown.
+	 *
+	 * @param expression the expression
+	 *
+	 * @return {@code true} if the state stores the expression
+	 */
+	boolean isStored(
+			SymbolicExpression expression) {
+		SimpleAbstractState<?, ?, ?> components = stateComponents();
+		Set<SymbolicExpression> denoted = rewrite(expression);
+		return !denoted.isEmpty() && denoted.stream()
+				.allMatch(denotation -> denotation instanceof Identifier identifier
+						&& (components.valueState.knowsIdentifier(identifier)
+								|| components.typeState.knowsIdentifier(identifier)));
+	}
+
+	/**
 	 * Builds the expression that accesses a field of the object a reference
 	 * points to, as the Python attribute access {@code reference.name} does.
 	 *
@@ -225,9 +351,9 @@ final class StateView<A extends AbstractLattice<A>, D extends AbstractDomain<A>>
 	static SymbolicExpression field(
 			SymbolicExpression reference,
 			String name) {
-		HeapDereference container = new HeapDereference(Untyped.INSTANCE, reference, SyntheticLocation.INSTANCE);
-		Variable child = new Variable(Untyped.INSTANCE, name, SyntheticLocation.INSTANCE);
-		return new AccessChild(Untyped.INSTANCE, container, child, SyntheticLocation.INSTANCE);
+		HeapDereference container = new HeapDereference(Untyped.INSTANCE, reference, PySyntheticLocation.INSTANCE);
+		Variable child = new Variable(Untyped.INSTANCE, name, PySyntheticLocation.INSTANCE);
+		return new AccessChild(Untyped.INSTANCE, container, child, PySyntheticLocation.INSTANCE);
 	}
 
 	private Set<SymbolicExpression> rewrite(

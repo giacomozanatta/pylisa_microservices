@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.HeapLocation;
+import it.unive.pylisa.analysis.Val;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -75,6 +76,47 @@ public final class Point {
 		return view == null ? Set.of() : view.errors();
 	}
 
+		/**
+	 * Yields, for each error of a type raised on a line, the assumptions the
+	 * branch that raised it depends on: empty for an error raised whatever
+	 * the assumptions.
+	 *
+	 * @param type the qualified name of the exception type
+	 * @param line the line of the statement that raised it
+	 *
+	 * @return the sets of assumptions, one per error
+	 */
+	public Set<Set<String>> errorMarks(
+			String type,
+			int line) {
+		return view == null ? Set.of() : view.errorMarks(type, line);
+	}
+
+/**
+	 * Yields the errors that may have been raised by the time this point is
+	 * reached, each with the call that raised it.
+	 *
+	 * @return the errors
+	 */
+	public Set<ErrorSite> errorSites() {
+		return view == null ? Set.of() : view.errorSites();
+	}
+
+	/**
+	 * Yields whether every error that may have been raised by the time this
+	 * point is reached was raised by a statement of the program, or by a call
+	 * nested inside one: only such errors can be propagated to callers and
+	 * attributed to a call site.
+	 *
+	 * @return {@code true} if every raising statement chains to a program
+	 *             statement
+	 */
+	public boolean everyErrorRaisedWithinProgram() {
+		if (view == null)
+			return fail("no state " + description);
+		return view.everyErrorRaisedWithinProgram();
+	}
+
 	/**
 	 * Yields the value of a variable or of an attribute.
 	 *
@@ -118,11 +160,30 @@ public final class Point {
 	}
 
 	/**
+	 * Yields every object a variable or an attribute may point to.
+	 *
+	 * @param path a variable name, optionally followed by attribute names
+	 *                 separated by dots
+	 *
+	 * @return the objects, possibly none
+	 */
+	public Set<Obj> objects(
+			String path) {
+		StateView<?, ?> view = reachable();
+		SymbolicExpression reference = expression(path);
+		// each object gets a reference of its own, so that reading one does
+		// not read the others the path may point to
+		return view.objectsPointedBy(reference).stream()
+				.map(target -> new Obj(view, view.referenceTo(target), target))
+				.collect(Collectors.toSet());
+	}
+
+	/**
 	 * Yields the objects of the given type that exist at this point, whether
 	 * or not a variable of the program points to them.
 	 *
 	 * @param typeName the name of the type, such as
-	 *                     {@code rclpy.publisher.Publisher}
+	 *                     {@code mylib.Widget}
 	 *
 	 * @return the objects
 	 */

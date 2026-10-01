@@ -4,27 +4,29 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import it.unive.lisa.AnalysisException;
 import it.unive.lisa.AnalysisSetupException;
-import it.unive.lisa.LiSA;
-import it.unive.lisa.conf.LiSAConfiguration;
-import it.unive.lisa.program.Program;
+import it.unive.lisa.checks.semantic.SemanticCheck;
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.statement.Statement;
+import it.unive.lisa.util.file.FileManager;
+import it.unive.pylisa.analysis.AnalysisConfig;
+import it.unive.pylisa.analysis.PythonAnalysis;
 import it.unive.pylisa.checks.AssertChecker;
 import it.unive.pylisa.checks.AssertionVerdict;
 import it.unive.pylisa.checks.KnownGap;
 import it.unive.pylisa.frontend.ModuleProvider;
-import it.unive.pylisa.frontend.PyFrontend;
+import it.unive.pylisa.program.ProgramSettings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
@@ -41,6 +43,12 @@ import java.util.stream.Collectors;
  * </p>
  */
 public final class StateTestHelper {
+
+	/**
+	 * The kind of files under which the analysis results of every program are
+	 * dumped, so that a failing test can be investigated on the full states.
+	 */
+	private static final String RESULTS = "analysis-results";
 
 	private final Path program;
 
@@ -88,17 +96,77 @@ public final class StateTestHelper {
 			throws IOException,
 			AnalysisSetupException,
 			AnalysisException {
+		return analyse(program, config, List.of(), providers);
+	}
+
+	/**
+	 * Analyses a program, running further semantic checks on its results. The
+	 * checks are run by the analysis; the caller keeps the instances to read
+	 * what they found.
+	 *
+	 * @param program     the path of the Python entry file, relative to the
+	 *                        project directory
+	 * @param config      the analysis configuration
+	 * @param extraChecks the checks to run on the results
+	 * @param providers   the providers of modules the program imports that
+	 *                        are neither in the program nor in pylisa's
+	 *                        library specifications
+	 *
+	 * @return the helper giving access to the results
+	 *
+	 * @throws IOException            if the program cannot be read
+	 * @throws AnalysisSetupException if the program cannot be translated
+	 * @throws AnalysisException      if the analysis fails
+	 */
+	public static StateTestHelper analyse(
+			String program,
+			AnalysisConfig config,
+			List<? extends SemanticCheck<?, ?>> extraChecks,
+			ModuleProvider... providers)
+			throws IOException,
+			AnalysisSetupException,
+			AnalysisException {
+		return analyse(program, config, extraChecks, ProgramSettings.NONE, providers);
+	}
+
+	/**
+	 * Analyses a program with settings of the environment it runs in, which
+	 * library models read, running further semantic checks on its results.
+	 *
+	 * @param program     the path of the Python entry file, relative to the
+	 *                        project directory
+	 * @param config      the analysis configuration
+	 * @param extraChecks the checks to run on the results
+	 * @param settings    the settings the translated program carries
+	 * @param providers   the providers of modules the program imports that
+	 *                        are neither in the program nor in pylisa's
+	 *                        library specifications
+	 *
+	 * @return the helper giving access to the results
+	 *
+	 * @throws IOException            if the program cannot be read
+	 * @throws AnalysisSetupException if the program cannot be translated
+	 * @throws AnalysisException      if the analysis fails
+	 */
+	public static StateTestHelper analyse(
+			String program,
+			AnalysisConfig config,
+			List<? extends SemanticCheck<?, ?>> extraChecks,
+			ProgramSettings settings,
+			ModuleProvider... providers)
+			throws IOException,
+			AnalysisSetupException,
+			AnalysisException {
 		Path path = Paths.get(program);
-		PyFrontend frontend = new PyFrontend(program, false);
-		for (ModuleProvider provider : providers)
-			frontend.addModuleProvider(provider);
-		Program lisaProgram = frontend.toLiSAProgram(true);
-		LiSAConfiguration conf = config.configuration(stem(path) + "/" + config.name());
 		ResultCollector<?, ?> collector = new ResultCollector<>();
 		AssertChecker<?, ?> checker = new AssertChecker<>();
-		conf.semanticChecks.add(collector);
-		conf.semanticChecks.add(checker);
-		new LiSA(conf).run(lisaProgram);
+		List<SemanticCheck<?, ?>> checks = new ArrayList<>(List.of(collector, checker));
+		checks.addAll(extraChecks);
+		// results of earlier runs are removed, so that the folder holds only
+		// the results of this run, not also those of code since removed
+		String workdir = TestDirectories.of(RESULTS).resolve(stem(path)).resolve(config.name()).toString();
+		FileManager.forceDeleteFolder(workdir);
+		PythonAnalysis.run(program, config, workdir, true, checks, List.of(providers), settings);
 		return new StateTestHelper(path, config, collector, checker, Files.readAllLines(path, StandardCharsets.UTF_8));
 	}
 
@@ -171,6 +239,20 @@ public final class StateTestHelper {
 		return results.after(statement, config.reader())
 				.map(Point::of)
 				.orElseGet(() -> Point.unanalysed("after " + statement + " at " + statement.getLocation()));
+	}
+
+	/**
+	 * Yields a point for every statement analysed, whether or not an
+	 * execution reaches it: the errors raised by a statement that always
+	 * raises are only in the state after it, which no execution reaches.
+	 *
+	 * @return the points
+	 */
+	public List<Point> allPoints() {
+		return results.statements().stream()
+				.map(statement -> results.after(statement, config.reader()).map(Point::of))
+				.flatMap(Optional::stream)
+				.collect(Collectors.toList());
 	}
 
 	/**
@@ -248,7 +330,14 @@ public final class StateTestHelper {
 		return Paths.get(location.getSourceFile()).normalize().equals(program.normalize());
 	}
 
-	private int lineOf(
+	/**
+	 * Yields the line of the analysed program marked with the given label.
+	 *
+	 * @param label the label, starting with {@code @}
+	 *
+	 * @return the 1-based line number
+	 */
+	public int lineOf(
 			String label) {
 		if (!label.startsWith("@"))
 			throw new IllegalArgumentException("A label starts with @, got " + label);

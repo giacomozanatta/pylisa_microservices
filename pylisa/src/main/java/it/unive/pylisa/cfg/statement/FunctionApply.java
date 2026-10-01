@@ -5,23 +5,18 @@ import it.unive.lisa.interprocedural.InterproceduralAnalysis;
 import it.unive.lisa.lattices.ExpressionSet;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
-import it.unive.lisa.program.cfg.CodeMember;
-import it.unive.lisa.program.cfg.NativeCFG;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.Statement;
-import it.unive.lisa.program.cfg.statement.call.CFGCall;
 import it.unive.lisa.program.cfg.statement.call.Call;
-import it.unive.lisa.program.cfg.statement.call.NativeCall;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.PushAny;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
-import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyFunctionType;
 import it.unive.pylisa.cfg.type.PyModuleType;
+import it.unive.pylisa.libraries.natives.LibraryNative;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 public class FunctionApply extends NaryExpression {
@@ -125,31 +120,54 @@ public class FunctionApply extends NaryExpression {
 	}
 
 	/**
-	 * Yields whether the receiver of this call can only be a module, as in
-	 * {@code rclpy.init()}: a function reached through a module is not a
+	 * Yields the arguments this call passes to the callables it calls: its
+	 * sub-expressions after the callee, the receiver of a method call
+	 * included, unless every value of the receiver is a module, as in
+	 * {@code os.getcwd()}: a function reached through a module is not a
 	 * method, and is not passed the module.
 	 *
-	 * @param <A>             the kind of abstract state
-	 * @param <D>             the kind of abstract domain
-	 * @param interprocedural the interprocedural analysis
-	 * @param state           the state after the evaluation of the arguments
-	 * @param params          the evaluated sub-expressions of this call
+	 * @param <A>       the kind of abstract state
+	 * @param <D>       the kind of abstract domain
+	 * @param analysis  the analysis
+	 * @param state     the state after the evaluation of the sub-expressions
+	 * @param receivers the values of the receiver, the first sub-expression
+	 *                      after the callee
 	 *
-	 * @return {@code true} if every runtime type of the receiver is a module
-	 *             type
+	 * @return the arguments
 	 *
 	 * @throws SemanticException if the types cannot be computed
 	 */
-	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> boolean receiverIsModule(
-			InterproceduralAnalysis<A, D> interprocedural,
+	public <A extends AbstractLattice<A>, D extends AbstractDomain<A>> Expression[] arguments(
+			Analysis<A, D> analysis,
 			AnalysisState<A> state,
-			ExpressionSet[] params)
+			ExpressionSet receivers)
 			throws SemanticException {
-		if (!hasReceiver || params.length < 2 || getSubExpressions().length < 2)
+		int first = receiverIsModule(analysis, state, receivers) ? 2 : 1;
+		return Arrays.copyOfRange(getSubExpressions(), first, getSubExpressions().length);
+	}
+
+	/**
+	 * Yields the arguments this call passes to the constructor of a class it
+	 * instantiates: its sub-expressions after the callee, without the receiver
+	 * through which the class is reached, as in {@code module.Class(x)}.
+	 *
+	 * @return the arguments
+	 */
+	Expression[] constructorArguments() {
+		int first = hasReceiver && getSubExpressions().length > 1 ? 2 : 1;
+		return Arrays.copyOfRange(getSubExpressions(), first, getSubExpressions().length);
+	}
+
+	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> boolean receiverIsModule(
+			Analysis<A, D> analysis,
+			AnalysisState<A> state,
+			ExpressionSet receivers)
+			throws SemanticException {
+		if (!hasReceiver || getSubExpressions().length < 2)
 			return false;
 		boolean any = false;
-		for (SymbolicExpression receiver : params[1]) {
-			Set<Type> types = interprocedural.getAnalysis().getRuntimeTypesOf(state, receiver, this);
+		for (SymbolicExpression receiver : receivers) {
+			Set<Type> types = analysis.getRuntimeTypesOf(state, receiver, this);
 			if (types.isEmpty() || !types.stream().allMatch(PyModuleType.class::isInstance))
 				return false;
 			any = true;
@@ -165,207 +183,64 @@ public class FunctionApply extends NaryExpression {
 			StatementStore<A> expressions)
 			throws SemanticException {
 		AnalysisState<A> result = state.bottomExecution();
-		boolean anyTypeFound = false;
-		// in m.f(x) with m a module, f is a function of the module: m is how
-		// it is reached, not an argument
-		int firstArgument = receiverIsModule(interprocedural, state, params) ? 2 : 1;
-		org.apache.logging.log4j.LogManager.getLogger(FunctionApply.class).debug(
-				"forwardSemanticsAux: this id={} subexpr={}", System.identityHashCode(this),
-				java.util.Arrays.asList(getSubExpressions()).stream().map(e -> e + "/" + System.identityHashCode(e))
-						.toList());
-		for (SymbolicExpression identifier : params[0]) {
-			// Fix 1: PushAny early-exit guard — avoids expanding Untyped to all
-			// registered types, which causes an interprocedural explosion /
-			// infinite loop
-			if (identifier instanceof PushAny) {
-				if (decoratorApplication && params.length > 1) {
-					// Generic transparent-decorator fallback (see field
-					// docstring): the call target is fully unknown, but this
-					// node was emitted by the decorator visitor, so propagate
-					// the decorated argument instead of erasing it to TOP.
-					for (SymbolicExpression callback : params[1])
-						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-								callback, this));
-					anyTypeFound = true;
-					continue;
-				}
-				result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-						new PushAny(Untyped.INSTANCE, getLocation()), this));
-				anyTypeFound = true;
-				continue;
-			}
-			Set<Type> runtimeTypes = interprocedural.getAnalysis().getRuntimeTypesOf(state, identifier, this);
-			// Registry fallback: in deep CBA sub-contexts the callee state may
-			// not carry type bindings for library globals referenced by
-			// qualified name (e.g. "$fastapi.APIRouter::__init__"). If the
-			// identifier's name matches a registered PyFunctionType /
-			// PyClassType, inject it into the runtime-type set so dispatch
-			// proceeds.
-			if ((runtimeTypes.isEmpty()
-					|| runtimeTypes.stream()
-							.allMatch(t -> t == it.unive.pylisa.program.type.NoInfoType.INSTANCE))
-					&& identifier instanceof it.unive.lisa.symbolic.value.GlobalVariable gv) {
-				String n = gv.getName();
-				String qualified = n.startsWith("$") ? n.substring(1).replace("::", ".") : n;
-				if (PyFunctionType.isRegistered(qualified)) {
-					runtimeTypes = new java.util.HashSet<>(runtimeTypes);
-					runtimeTypes.add(PyFunctionType.lookup(qualified));
-				} else {
-					// Class resolution goes through base-name lookup so that
-					// conditional class redefinition (multiple def-sites
-					// sharing
-					// a qualified name) surfaces all candidate classes to
-					// ClassInstantiation dispatch.
-					java.util.Collection<PyClassType> classMatches = PyClassType.lookupAllByBaseName(qualified);
-					if (!classMatches.isEmpty()) {
-						runtimeTypes = new java.util.HashSet<>(runtimeTypes);
-						runtimeTypes.addAll(classMatches);
-					}
-				}
-			}
-			// Safety net: if the type set has exploded (e.g. because an
-			// unresolved heap cell accumulated every registered type), filter
-			// to only the types this method knows how to dispatch on —
-			// PyFunctionType (triggers NativeCall/CFGCall) and PyClassType
-			// (triggers ClassInstantiation). Skipping the filter entirely (as
-			// before) lost pluggable-statement dispatch for calls whose
-			// receiver had an untyped static type but resolved through MRO
-			// to a real library function (e.g. api_router.include_router(...)
-			// in deeply-imported code).
-			if (runtimeTypes.size() > 20) {
-				Set<Type> filtered = new java.util.HashSet<>();
-				for (Type t : runtimeTypes)
-					if (t instanceof PyFunctionType || t instanceof PyClassType
-							|| (t instanceof it.unive.lisa.type.ReferenceType rt
-									&& (rt.getInnerType() instanceof PyFunctionType
-											|| rt.getInnerType() instanceof PyClassType)))
-						filtered.add(t);
-				if (filtered.isEmpty() || filtered.size() > 20) {
-					if (decoratorApplication && params.length > 1) {
-						for (SymbolicExpression callback : params[1])
-							result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-									callback, this));
-					} else {
-						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-								new PushAny(Untyped.INSTANCE, getLocation()), this));
-					}
-					anyTypeFound = true;
-					continue;
-				}
-				runtimeTypes = filtered;
-			}
-			boolean handledIdentifier = false;
-			for (Type t : runtimeTypes) {
-				if (t instanceof PyClassType pct) {
-					handledIdentifier = true;
-					anyTypeFound = true;
-					Expression[] classParams;
-					if (hasReceiver && getSubExpressions().length > 1) {
-						// getSubExpressions() = [identifier, receiver,
-						// arg1, arg2, ...]
-						// ClassInstantiation should receive: [identifier,
-						// arg1, arg2, ...]
-						int len = getSubExpressions().length;
-						classParams = new Expression[len - 1];
-						classParams[0] = getSubExpressions()[0];
-						System.arraycopy(getSubExpressions(), 2, classParams, 1, len - 2);
-					} else {
-						classParams = getSubExpressions();
-					}
-					ClassInstantiation ci = new ClassInstantiation(this.getCFG(), getLocation(), pct,
-							classParams);
-					result = result.lub(ci.forwardSemantics(state, interprocedural, expressions));
-				}
-				if (t instanceof PyFunctionType pft) {
-					handledIdentifier = true;
-					anyTypeFound = true;
-					CodeMember cm = pft.getUnit().getFunction();
-					// here, maybe I need to add the main
-					Call c = null;
-					if (cm instanceof NativeCFG cfg) {
-						c = new NativeCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
-								List.of(cfg),
-								Arrays.copyOfRange(getSubExpressions(), firstArgument, getSubExpressions().length));
-						org.apache.logging.log4j.LogManager.getLogger(FunctionApply.class).debug(
-								"NativeCall built: this(FA)id={} subexpr[1]={} id={}, NativeCFG={}",
-								System.identityHashCode(this),
-								getSubExpressions().length > 1 ? getSubExpressions()[1] : "n/a",
-								getSubExpressions().length > 1 ? System.identityHashCode(getSubExpressions()[1])
-										: -1,
-								cfg.getDescriptor().getName());
-					} else if (cm instanceof CFG cfg) {
-						c = new CFGCall(this.getCFG(), getLocation(), Call.CallType.STATIC, "", "$call",
-								List.of(cfg),
-								Arrays.copyOfRange(getSubExpressions(), firstArgument, getSubExpressions().length));
-					}
-					if (c != null) {
-						// Link the synthetic call to its emitting
-						// FunctionApply so that AnalyzedCFG.getAnalysisStateBefore
-						// can take the "Expression with parent" branch
-						// instead of NodeList.predecessorsOf (which would
-						// throw because the call was never addNode'd to
-						// the containing CFG). Same mechanism as
-						// ObjectRegister.initialize uses for its synthetic
-						// $init UnresolvedCall.
-						c.setParentStatement(this);
-						AnalysisState<A> callResult = c.forwardSemantics(state, interprocedural, expressions);
-						if (callResult.isBottom()) {
-							result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-									new PushAny(Untyped.INSTANCE, getLocation()), this));
-						} else {
-							result = result.lub(callResult);
-						}
-					} else {
-						// If we know this is a function value but cannot
-						// resolve a
-						// concrete callable body, stay conservative without
-						// collapsing to bottom.
-						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-								new PushAny(Untyped.INSTANCE, getLocation()), this));
-					}
-				}
-				// AttributeAccess access = new
-				// AttributeAccess(this.getCFG(),
-				// SyntheticLocation.INSTANCE, getSubExpressions()[0],
-				// "__new__");
-
-				// FunctionApply apply = new FunctionApply(getCFG(),
-				// SyntheticLocation.INSTANCE, access, new Expression[]{});
-				// result = result.lub(apply.forwardSemantics(state,
-				// interprocedural, expressions));
-			}
-			if (!handledIdentifier) {
-				if (decoratorApplication && params.length > 1) {
-					// Generic transparent-decorator fallback: the call
-					// target is unresolved (e.g. an external decorator
-					// with no library spec) but this call was emitted by
-					// the decorator visitor, so the conservative,
-					// useful default is to pass the decorated argument
-					// through unchanged. This preserves the inner
-					// PyFunctionType so an outer route decorator can
-					// still resolve the handler, without requiring a
-					// per-decorator library specification.
-					for (SymbolicExpression callback : params[1])
-						result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-								callback, this));
-				} else {
-					result = result.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-							new PushAny(Untyped.INSTANCE, getLocation()), this));
-				}
-				anyTypeFound = true;
-			}
-		}
-		if (!anyTypeFound) {
-			if (decoratorApplication && params.length > 1) {
-				AnalysisState<A> propagated = state.bottomExecution();
-				for (SymbolicExpression callback : params[1])
-					propagated = propagated.lub(interprocedural.getAnalysis().smallStepSemantics(state,
-							callback, this));
-				return propagated;
-			}
-			return interprocedural.getAnalysis().smallStepSemantics(state,
-					new PushAny(Untyped.INSTANCE, getLocation()), this);
-		}
+		Expression[] arguments = params.length < 2 ? new Expression[0]
+				: arguments(interprocedural.getAnalysis(), state, params[1]);
+		for (CallTargets.Target target : CallTargets.of(interprocedural.getAnalysis(), state, params[0], this))
+			result = result.lub(apply(target, interprocedural, state, params, expressions, arguments));
 		return result;
+	}
+
+	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> AnalysisState<A> apply(
+			CallTargets.Target target,
+			InterproceduralAnalysis<A, D> interprocedural,
+			AnalysisState<A> state,
+			ExpressionSet[] params,
+			StatementStore<A> expressions,
+			Expression[] arguments)
+			throws SemanticException {
+		if (target instanceof CallTargets.Instantiation instantiation) {
+			Expression[] constructorArguments = constructorArguments();
+			Expression[] classParams = new Expression[constructorArguments.length + 1];
+			classParams[0] = getSubExpressions()[0];
+			System.arraycopy(constructorArguments, 0, classParams, 1, constructorArguments.length);
+			ClassInstantiation ci = new ClassInstantiation(this.getCFG(), getLocation(), instantiation.type(),
+					classParams);
+			// errors raised while constructing belong to this call
+			ci.setParentStatement(this);
+			return ci.forwardSemantics(state, interprocedural, expressions);
+		}
+		Call call = CallTargets.call(target, this, arguments);
+		if (call == null)
+			return unknownResult(interprocedural, state, params);
+		AnalysisState<A> callResult = call.forwardSemantics(state, interprocedural, expressions);
+		// a library model is checked to have a continuation for every
+		// reachable input unless its callable may never return, so its result
+		// is kept as it is; any other callee with no result (a Python function
+		// whose recursion is still being computed, a native that is not such a
+		// model) is given an unknown one
+		if (!callResult.isBottom() || target instanceof CallTargets.Native natives
+				&& LibraryNative.class.isAssignableFrom(natives.implementation()))
+			return callResult;
+		return unknownResult(interprocedural, state, params);
+	}
+
+	/**
+	 * Yields the result of a part of this call that cannot be dispatched: an
+	 * unknown value. A decorator that cannot be resolved is assumed to return
+	 * the function it decorates, so that an outer decorator still sees it.
+	 */
+	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> AnalysisState<A> unknownResult(
+			InterproceduralAnalysis<A, D> interprocedural,
+			AnalysisState<A> state,
+			ExpressionSet[] params)
+			throws SemanticException {
+		if (decoratorApplication && params.length > 1) {
+			AnalysisState<A> decorated = state.bottomExecution();
+			for (SymbolicExpression function : params[1])
+				decorated = decorated.lub(interprocedural.getAnalysis().smallStepSemantics(state, function, this));
+			return decorated;
+		}
+		return interprocedural.getAnalysis().smallStepSemantics(state, new PushAny(Untyped.INSTANCE, getLocation()),
+				this);
 	}
 }

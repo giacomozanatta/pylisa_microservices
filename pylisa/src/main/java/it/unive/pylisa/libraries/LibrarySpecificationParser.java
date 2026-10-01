@@ -10,6 +10,7 @@ import it.unive.pylisa.antlr.LibraryDefinitionParser.LisatypeContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.MethodContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.ParamContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParser.TypeContext;
+import it.unive.pylisa.antlr.LibraryDefinitionParser.ValueContext;
 import it.unive.pylisa.antlr.LibraryDefinitionParserBaseVisitor;
 import it.unive.pylisa.libraries.loader.BooleanValue;
 import it.unive.pylisa.libraries.loader.ClassDef;
@@ -64,7 +65,8 @@ public class LibrarySpecificationParser extends LibraryDefinitionParserBaseVisit
 		return new Field(
 				ctx.INSTANCE() != null,
 				ctx.name.getText(),
-				visitType(ctx.paramType));
+				visitType(ctx.paramType),
+				ctx.DEFAULT() == null ? null : value(ctx.val, ctx.name.getText()));
 	}
 
 	@Override
@@ -79,23 +81,27 @@ public class LibrarySpecificationParser extends LibraryDefinitionParserBaseVisit
 									: ctx.AMP() != null ? Parameter.ParameterType.KW_ONLY
 											: Parameter.ParameterType.STANDARD);
 
-		Value def;
-		if (ctx.val.NONE() != null)
-			def = new NoneValue();
-		else if (ctx.val.BOOLEAN() != null)
-			def = new BooleanValue(ctx.val.BOOLEAN().getText().equals("true"));
-		else if (ctx.val.STRING() != null)
-			def = new StringValue(ctx.val.STRING().getText());
-		else if (ctx.val.NUMBER() != null)
-			def = new NumberValue(Integer.parseInt(ctx.val.NUMBER().getText()));
-		else
-			throw new LibraryParsingException(file, "Unsupported default parameter type: " + type);
+		Value def = value(ctx.val, name);
 
 		return new Parameter(name, type, def,
 				ctx.STAR() != null ? Parameter.ParameterType.VAR_ARGS
 						: ctx.POWER() != null ? Parameter.ParameterType.KW_ARGS
 								: ctx.AMP() != null ? Parameter.ParameterType.KW_ONLY
 										: Parameter.ParameterType.STANDARD);
+	}
+
+	private Value value(
+			ValueContext val,
+			String owner) {
+		if (val.NONE() != null)
+			return new NoneValue();
+		if (val.BOOLEAN() != null)
+			return new BooleanValue(val.BOOLEAN().getText().equals("true"));
+		if (val.STRING() != null)
+			return new StringValue(val.STRING().getText());
+		if (val.NUMBER() != null)
+			return new NumberValue(Integer.parseInt(val.NUMBER().getText()));
+		throw new LibraryParsingException(file, "Unsupported default value for " + owner);
 	}
 
 	@Override

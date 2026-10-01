@@ -3,7 +3,7 @@ package it.unive.pylisa.state;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import it.unive.pylisa.testing.AnalysisConfig;
+import it.unive.pylisa.analysis.AnalysisConfig;
 import it.unive.pylisa.testing.StateTestHelper;
 import java.util.Set;
 import org.junit.jupiter.params.ParameterizedTest;

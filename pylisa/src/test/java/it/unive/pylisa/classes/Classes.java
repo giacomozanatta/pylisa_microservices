@@ -78,7 +78,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
+		JsonNode exitAnalysisState = normalState(root.get("descriptions").get(nodesCount - 1));
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");
@@ -189,7 +189,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
+		JsonNode exitAnalysisState = normalState(root.get("descriptions").get(nodesCount - 1));
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");
@@ -295,7 +295,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
+		JsonNode exitAnalysisState = normalState(root.get("descriptions").get(nodesCount - 1));
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");
@@ -400,7 +400,7 @@ public class Classes {
 
 		JsonNode root = mapper.readTree(reportJson.get().toFile());
 		int nodesCount = root.get("descriptions").size();
-		JsonNode exitAnalysisState = root.get("descriptions").get(nodesCount - 1).get("description").get("state");
+		JsonNode exitAnalysisState = normalState(root.get("descriptions").get(nodesCount - 1));
 		JsonNode heap = exitAnalysisState.get("heap");
 		JsonNode type = exitAnalysisState.get("type");
 		JsonNode value = exitAnalysisState.get("value");
@@ -451,4 +451,14 @@ public class Classes {
 				"Foo must have at least one ancestor (builtins.object)");
 	}
 
+
+	/**
+	 * Yields the state of the normal execution after a node: with errors, it
+	 * is one of several states in the node's description.
+	 */
+	private static JsonNode normalState(
+			JsonNode node) {
+		JsonNode description = node.get("description");
+		return (description.has("normal") ? description.get("normal") : description).get("state");
+	}
 }

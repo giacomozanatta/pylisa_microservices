@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import it.unive.lisa.program.Program;
 import it.unive.lisa.program.SourceCodeLocation;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.CodeMember;
@@ -20,6 +19,7 @@ import it.unive.pylisa.libraries.LibrarySpecificationProvider;
 import it.unive.pylisa.program.FunctionUnit;
 import it.unive.pylisa.program.ModuleUnit;
 import it.unive.pylisa.program.PyClassUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.io.IOException;
 import java.util.Collection;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
  * a {@link SourceCodeLocation} tagged with the {@code location} declared in the
  * {@code .txt} file, whereas units produced by
  * {@code PythonModuleImportManager#loadProjectModule} carry the singleton
- * {@link SyntheticLocation#INSTANCE}.</li>
+ * {@link PySyntheticLocation#INSTANCE}.</li>
  * <li>The {@code json.dumps} / {@code json.loads} {@link FunctionUnit} body —
  * the library loader wraps its implementation class in a {@link NativeCFG},
  * while the frontend visitor emits a regular {@code PyCFG} when it parses
@@ -73,8 +73,8 @@ public class JsonImportResolutionTest {
 				((SourceCodeLocation) loc).getSourceFile(),
 				"Library-spec unit should carry the `location json` declared in json.txt");
 		assertFalse(
-				loc == SyntheticLocation.INSTANCE,
-				"Stub-backed json unit must not carry SyntheticLocation");
+				loc == PySyntheticLocation.INSTANCE,
+				"Stub-backed json unit must not carry PySyntheticLocation");
 
 		// The two stub methods were registered on the Program under their
 		// qualified names during library loading.
@@ -110,13 +110,13 @@ public class JsonImportResolutionTest {
 		ModuleUnit jsonUnit = (ModuleUnit) PyModuleType.lookup("json").getUnit();
 		assertNotNull(jsonUnit, "json ModuleUnit must be registered");
 
-		// loadProjectModule stamps SyntheticLocation on project-file-backed
+		// loadProjectModule stamps PySyntheticLocation on project-file-backed
 		// units — the distinguishing fingerprint vs. the library-spec unit
 		// (which would carry a SourceCodeLocation("json", 0, 0)).
 		CodeLocation loc = jsonUnit.getLocation();
 		assertTrue(
-				loc == SyntheticLocation.INSTANCE,
-				"Expected json unit to come from loadProjectModule (SyntheticLocation); got " + loc);
+				loc == PySyntheticLocation.INSTANCE,
+				"Expected json unit to come from loadProjectModule (PySyntheticLocation); got " + loc);
 
 		// `def dumps` and `def loads` from json.py become FunctionUnits whose
 		// bodies are regular PyCFGs — NOT NativeCFGs. The absence of any

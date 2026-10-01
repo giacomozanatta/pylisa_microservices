@@ -84,8 +84,58 @@ public abstract class LibraryNative extends NaryExpression implements PluggableS
 			ExpressionSet[] arguments,
 			StatementStore<A> expressions)
 			throws SemanticException {
-		ModelState<A, D> entry = new ModelState<>(interprocedural.getAnalysis(), state, this, callStatement());
-		return model(entry, arguments).analysisState();
+		// the model runs without the errors and the halt of earlier
+		// statements, so that its own outcome can be checked, and they are
+		// joined back afterwards
+		AnalysisState<A> input = state.removeAllErrors(true);
+		// a mark carried from an earlier call applies to this one on the
+		// executions where it is set on all of them
+		ModelState<A, D> entry = new ModelState<>(interprocedural.getAnalysis(), input, this, callStatement())
+				.withCarriedMarks();
+		AnalysisState<A> outcome = model(entry, arguments).analysisState();
+		if (!entry.isUnreachable() && hasNoContinuation(outcome) && !diverges())
+			throw new SemanticException("The model of " + getConstructName() + " at " + callSite()
+					+ " has no continuation for a reachable input: no normal result, no error and no halt."
+					+ " A model of a callable that may never return must declare it");
+		return outcome.lub(state.bottomExecution());
+	}
+
+	/**
+	 * Yields whether the modelled callable may never return for some input,
+	 * as a blocking call does: its model may then leave no continuation for a
+	 * reachable input. Readers of the results must not take the absence of a
+	 * normal result of such a call as a certain failure. A model declares it
+	 * with {@link Diverges} on its class.
+	 *
+	 * @return {@code true} if the callable may never return
+	 */
+	public final boolean diverges() {
+		return diverges(getClass());
+	}
+
+	/**
+	 * Yields whether the callable modelled by the given class may never
+	 * return for some input.
+	 *
+	 * @param model the class of the model
+	 *
+	 * @return {@code true} if the model's class is annotated with
+	 *             {@link Diverges}
+	 */
+	public static boolean diverges(
+			Class<?> model) {
+		return model.isAnnotationPresent(Diverges.class);
+	}
+
+	/**
+	 * Yields whether no execution continues from a state in any way: not
+	 * normally, not with an error and not by halting.
+	 */
+	private static <A extends AbstractLattice<A>> boolean hasNoContinuation(
+			AnalysisState<A> state) {
+		boolean normal = !state.getExecution().isBottom() && !state.getExecutionState().isBottom();
+		return !normal && state.getErrors().isBottom() && state.getHalt().isBottom()
+				&& state.getSmashedErrors().isBottom();
 	}
 
 	/**

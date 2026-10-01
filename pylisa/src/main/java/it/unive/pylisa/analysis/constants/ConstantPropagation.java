@@ -5,7 +5,6 @@ import it.unive.lisa.analysis.nonrelational.value.BaseNonRelationalValueDomain;
 import it.unive.lisa.analysis.nonrelational.value.ValueEnvironment;
 import it.unive.lisa.analysis.value.ValueLattice;
 import it.unive.lisa.lattices.Satisfiability;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.program.type.BoolType;
@@ -34,6 +33,7 @@ import it.unive.lisa.type.Type;
 import it.unive.lisa.util.representation.StringRepresentation;
 import it.unive.lisa.util.representation.StructuredRepresentation;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
+import it.unive.pylisa.program.PySyntheticLocation;
 import it.unive.pylisa.symbolic.DictConstant;
 import it.unive.pylisa.symbolic.ListConstant;
 import it.unive.pylisa.symbolic.operators.DictPut;
@@ -70,7 +70,7 @@ public class ConstantPropagation
 
 	public ConstantPropagation(
 			int value) {
-		this(new Constant(Int32Type.INSTANCE, value, SyntheticLocation.INSTANCE));
+		this(new Constant(Int32Type.INSTANCE, value, PySyntheticLocation.INSTANCE));
 	}
 
 	public ConstantPropagation(

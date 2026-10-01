@@ -20,6 +20,7 @@ import it.unive.pylisa.cfg.type.*;
 import it.unive.pylisa.libraries.LibrarySpecificationParser.LibraryCreationException;
 import it.unive.pylisa.program.FunctionUnit;
 import it.unive.pylisa.program.ModuleUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -186,7 +187,7 @@ public class Library {
 		// as in a Python module, the imports run before the rest of the body:
 		// the parent packages first, then the imported modules
 		for (CompilationUnit imported : importedUnits(program)) {
-			ImportModule importStatement = new ImportModule(initCFG, SyntheticLocation.INSTANCE,
+			ImportModule importStatement = new ImportModule(initCFG, PySyntheticLocation.INSTANCE,
 					imported.getName(), imported);
 			initCFG.addNode(importStatement, e == null);
 			if (e != null)
@@ -197,11 +198,11 @@ public class Library {
 			// Use the class type itself, not an instance
 			ClassUnit lisaClassUnit = cls.toLiSAClassUnit(program, init);
 			PyClassType classType = PyClassType.register(lisaClassUnit.getName(), lisaClassUnit);
-			Expression target = new PythonScopedAttributeAccessRef(initCFG, SyntheticLocation.INSTANCE, module,
-					new Global(SyntheticLocation.INSTANCE, module, cls.getName(), false));
+			Expression target = new PythonScopedAttributeAccessRef(initCFG, PySyntheticLocation.INSTANCE, module,
+					new Global(PySyntheticLocation.INSTANCE, module, cls.getName(), false));
 
-			Assignment classVarAssign = new PyAssign(initCFG, SyntheticLocation.INSTANCE, target,
-					new ImportClass(initCFG, SyntheticLocation.INSTANCE, cls.getName(), lisaClassUnit));
+			Assignment classVarAssign = new PyAssign(initCFG, PySyntheticLocation.INSTANCE, target,
+					new ImportClass(initCFG, PySyntheticLocation.INSTANCE, cls.getName(), lisaClassUnit));
 			initCFG.addNode(classVarAssign, e == null);
 			if (e != null) {
 				initCFG.addEdge(new SequentialEdge(e, classVarAssign));
@@ -214,32 +215,39 @@ public class Library {
 		for (Method mtd : getMethods()) {
 			// IMPLEMENT THIS
 
-			FunctionUnit functionUnit = mtd.toLiSAFunctionUnit(SyntheticLocation.INSTANCE, init, program, module);
+			FunctionUnit functionUnit = mtd.toLiSAFunctionUnit(PySyntheticLocation.INSTANCE, init, program, module,
+					name);
 			PyFunctionType functionType = PyFunctionType.register(functionUnit.getName(), functionUnit);
-			Expression target = new PythonScopedAttributeAccessRef(initCFG, SyntheticLocation.INSTANCE, module,
-					new Global(SyntheticLocation.INSTANCE, module, mtd.getName(), false));
-			PyAssign funcAssign = new PyAssign(initCFG, SyntheticLocation.INSTANCE, target,
-					new ImportFunction(initCFG, SyntheticLocation.INSTANCE, functionUnit.getName(), functionUnit));
+			Expression target = new PythonScopedAttributeAccessRef(initCFG, PySyntheticLocation.INSTANCE, module,
+					new Global(PySyntheticLocation.INSTANCE, module, mtd.getName(), false));
+			PyAssign funcAssign = new PyAssign(initCFG, PySyntheticLocation.INSTANCE, target,
+					new ImportFunction(initCFG, PySyntheticLocation.INSTANCE, functionUnit.getName(), functionUnit));
 			initCFG.addNode(funcAssign, e == null);
 			if (e != null) {
 				initCFG.addEdge(new SequentialEdge(e, funcAssign));
 			}
 			e = funcAssign;
 		}
-		// Assign fields / constants
-		// TODO: KEEP IT FOR LATER.
-		/*
-		 * for (Field fld : lib.getFields()) { SymbolicExpression fieldExpr =
-		 * createFieldExpression(fld); // symbolic constant Assignment assign =
-		 * new Assignment(initCFG, location, new MemberAccess(selfRef,
-		 * fld.getName()), fieldExpr); initCFG.addNode(assign); }
-		 */
+		// module-level fields with an initial value are set, as the module
+		// body sets them in Python
+		for (Field fld : fields) {
+			if (fld.isInstance() || fld.getInitialValue() == null)
+				continue;
+			Expression target = new PythonScopedAttributeAccessRef(initCFG, PySyntheticLocation.INSTANCE, module,
+					new Global(PySyntheticLocation.INSTANCE, module, fld.getName(), false));
+			PyAssign fieldAssign = new PyAssign(initCFG, PySyntheticLocation.INSTANCE, target,
+					fld.getInitialValue().toLiSAExpression(initCFG));
+			initCFG.addNode(fieldAssign, e == null);
+			if (e != null)
+				initCFG.addEdge(new SequentialEdge(e, fieldAssign));
+			e = fieldAssign;
+		}
 		if (e != null) {
-			Ret ret = new Ret(initCFG, SyntheticLocation.INSTANCE);
+			Ret ret = new Ret(initCFG, PySyntheticLocation.INSTANCE);
 			initCFG.addNode(ret);
 			initCFG.addEdge(new SequentialEdge(e, ret));
 		} else {
-			Ret ret = new Ret(initCFG, SyntheticLocation.INSTANCE);
+			Ret ret = new Ret(initCFG, PySyntheticLocation.INSTANCE);
 			initCFG.addNode(ret, true);
 		}
 		return initCFG;
@@ -252,7 +260,7 @@ public class Library {
 		CodeLocation location = new SourceCodeLocation(this.location, 0, 0);
 
 		for (Method mtd : this.methods) {
-			NativeCFG construct = mtd.toLiSACfg(location, init, lib);
+			NativeCFG construct = mtd.toLiSACfg(location, init, lib, name);
 			if (construct.getDescriptor().isInstance())
 				throw new LibraryCreationException();
 			lib.addCodeMember(construct);

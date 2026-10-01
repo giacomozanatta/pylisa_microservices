@@ -1,13 +1,11 @@
 package it.unive.pylisa.frontend;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import it.unive.lisa.program.Program;
 import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeMember;
-import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.cfg.expression.PyAssign;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -98,38 +96,17 @@ final class WalrusOperatorTests {
 	}
 
 	@Test
-	void walrus_rejected_outside_supported_position() throws Exception {
+	void walrus_outside_supported_position_is_translated_unsoundly_and_reported() throws Exception {
 		// PEP 572 allows (x := 5) as a parenthesised atom in expressions, but
 		// without an active prelude frame the desugar has nowhere to hoist
-		// the assignment cleanly. We expect a clean UNSUPPORTED rejection,
-		// not a silent side-effect loss or NPE. In the default frontend mode
-		// the rejection propagates out of the function body parse, so we
-		// assert the exception is thrown.
-		assertThrows(Exception.class, () -> FrontendTestSupport.parseSnippet(
-				"def go():\n"
-						+ "    y = (x := 7)\n"
-						+ "    return x + y\n"));
-	}
-
-	@Test
-	void walrus_unsupported_position_is_skippable_in_permissive_mode() throws Exception {
-		// Dispatch's Evaluation test ultimately enables permissive mode so
-		// one bad function does not kill the file. Assert that the walrus
-		// UNSUPPORTED rejection is reported as a diagnostic event, not a
-		// lost silent miscompile.
-		var tmp = FrontendTestSupport.writeTempSnippet(
+		// the assignment: the binding is dropped, the value kept, and the
+		// function is reported as translated unsoundly, never silently
+		var parsed = FrontendTestSupport.parseSnippetWithFrontend(
 				"def go():\n"
 						+ "    y = (x := 7)\n"
 						+ "    return x + y\n");
-		PyFrontend fe = new PyFrontend(tmp.toString(), false).setContinueOnUnsupportedStatement(true);
-		try {
-			fe.toLiSAProgram(false);
-		} catch (UnsupportedStatementException ignored) {
-			// Some callsites still propagate even in permissive mode; event
-			// recording is the primary contract we check.
-		}
-		assertThat(fe.reporter().events())
-				.as("reporter records :=-in-unsupported-position")
-				.anyMatch(ev -> ev.feature() != null && ev.feature().contains(":= walrus"));
+		assertThat(parsed.frontend().reporter().events())
+				.anyMatch(ev -> ev.severity() == DiagnosticReporter.Severity.UNSOUND
+						&& ev.detail().contains(":= walrus in unsupported position"));
 	}
 }

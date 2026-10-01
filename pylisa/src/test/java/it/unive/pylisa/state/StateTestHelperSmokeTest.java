@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import it.unive.pylisa.testing.AnalysisConfig;
+import it.unive.pylisa.analysis.AnalysisConfig;
+import it.unive.pylisa.analysis.Val;
 import it.unive.pylisa.testing.Point;
 import it.unive.pylisa.testing.StateTestHelper;
-import it.unive.pylisa.testing.Val;
 import java.util.Set;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;

@@ -3,7 +3,6 @@ package it.unive.pylisa.frontend.definition;
 import it.unive.lisa.program.ClassUnit;
 import it.unive.lisa.program.CompilationUnit;
 import it.unive.lisa.program.SourceCodeLocation;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.edge.Edge;
@@ -29,6 +28,7 @@ import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
 import it.unive.pylisa.program.ModuleUnit;
 import it.unive.pylisa.program.PyClassUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -74,7 +74,7 @@ public final class ClassDefinitionVisitor {
 		PyClassUnit cu = new PyClassUnit(classLoc, ctx.program(), fqName, baseFqName, false);
 		PyClassType.register(fqName, cu);
 		ctx.currentUnit(cu);
-		PyCFG classInit = new PyCFG(support.buildInitClassCFGDescriptor(SyntheticLocation.INSTANCE));
+		PyCFG classInit = new PyCFG(support.buildInitClassCFGDescriptor(PySyntheticLocation.INSTANCE));
 		cu.addCodeMember(classInit);
 
 		List<ArgumentContext> superclasses = pctx.arglist() != null ? new ArrayList<>(pctx.arglist().argument())
@@ -102,6 +102,8 @@ public final class ClassDefinitionVisitor {
 			}
 			for (CompilationUnit match : matches)
 				cu.addAncestor(match);
+			if (matches.isEmpty())
+				cu.markUnresolvedBase();
 		}
 		if (cu.getImmediateAncestors().isEmpty()) {
 			if (ctx.objectUnit() != null)
@@ -118,7 +120,7 @@ public final class ClassDefinitionVisitor {
 		Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> classInitBody = parseClassBody(pctx.suite());
 		classInit.getNodeList().mergeWith(classInitBody.getMiddle());
 		if (pctx.suite().stmt().isEmpty()) {
-			NoOp noOp = new NoOp(classInit, SyntheticLocation.INSTANCE);
+			NoOp noOp = new NoOp(classInit, PySyntheticLocation.INSTANCE);
 			classInit.addNode(noOp, true);
 			classInit.addEdge(new SequentialEdge(noOp, classInitBody.getLeft()));
 		} else
@@ -136,7 +138,7 @@ public final class ClassDefinitionVisitor {
 			target = new VariableRef(ctx.currentCFG(), support.getLocation(pctx), name);
 		}
 		PyAssign classAssign = new PyAssign(ctx.currentCFG(), support.getLocation(pctx), target,
-				new ImportClass(ctx.currentCFG(), SyntheticLocation.INSTANCE, name, cu));
+				new ImportClass(ctx.currentCFG(), PySyntheticLocation.INSTANCE, name, cu));
 		block.addNode(classAssign);
 
 		return Triple.of(classAssign, block, classAssign);
@@ -215,7 +217,7 @@ public final class ClassDefinitionVisitor {
 		} finally {
 			ctx.exitLocalScope();
 		}
-		Ret ret = new Ret(ctx.currentCFG(), SyntheticLocation.INSTANCE);
+		Ret ret = new Ret(ctx.currentCFG(), PySyntheticLocation.INSTANCE);
 		block.addNode(ret);
 		if (last != null)
 			block.addEdge(new SequentialEdge(last, ret));

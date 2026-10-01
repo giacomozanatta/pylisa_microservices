@@ -12,6 +12,8 @@ import it.unive.lisa.util.datastructures.graph.GraphVisitor;
 import it.unive.pylisa.analysis.ObjectRegister;
 import it.unive.pylisa.cfg.expression.PyAssign;
 import it.unive.pylisa.program.FunctionUnit;
+import java.util.Comparator;
+import java.util.Objects;
 
 public class ImportFunction extends Expression {
 	private String className;
@@ -62,10 +64,34 @@ public class ImportFunction extends Expression {
 		return state;
 	}
 
+	/**
+	 * Orders the bindings of functions by the qualified name of the function they bind: pylisa
+	 * builds them with one synthetic location, and the methods of one class body must stay distinct
+	 * statements. The name given to the statement is not a key: the library loader gives every
+	 * method of a class the name of the class.
+	 */
 	@Override
 	protected int compareSameClass(
 			Statement o) {
-		return 0;
+		return Objects.compare(boundName(), ((ImportFunction) o).boundName(),
+				Comparator.nullsFirst(Comparator.naturalOrder()));
+	}
+
+	@Override
+	public boolean equals(
+			Object obj) {
+		return this == obj
+				|| super.equals(obj) && getClass() == obj.getClass()
+						&& Objects.equals(boundName(), ((ImportFunction) obj).boundName());
+	}
+
+	@Override
+	public int hashCode() {
+		return 31 * super.hashCode() + Objects.hashCode(boundName());
+	}
+
+	private String boundName() {
+		return functionUnit == null ? null : functionUnit.getName();
 	}
 
 	@Override

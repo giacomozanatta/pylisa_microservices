@@ -4,6 +4,8 @@ library builtins:
         method __new__: it.unive.pylisa.libraries.builtins.object.ObjectNew
             libtype object*
             param this type it.unive.lisa.type.Untyped::INSTANCE
+            param *args type it.unive.lisa.type.Untyped::INSTANCE
+            param **kwargs type it.unive.lisa.type.Untyped::INSTANCE
         method __init__: it.unive.pylisa.libraries.builtins.object.ObjectInit
             type it.unive.lisa.type.Untyped::INSTANCE
             param this type it.unive.lisa.type.Untyped::INSTANCE

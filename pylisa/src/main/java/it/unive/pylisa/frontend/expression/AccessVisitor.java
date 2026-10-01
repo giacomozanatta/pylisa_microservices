@@ -4,6 +4,7 @@ import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.VariableRef;
+import it.unive.lisa.program.cfg.statement.call.NamedParameterExpression;
 import it.unive.pylisa.UnsupportedStatementException;
 import it.unive.pylisa.antlr.Python3Parser.ArgumentContext;
 import it.unive.pylisa.antlr.Python3Parser.Atom_exprContext;
@@ -22,6 +23,7 @@ import it.unive.pylisa.program.PyClassUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.antlr.v4.runtime.Token;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -104,22 +106,49 @@ public final class AccessVisitor {
 	private Expression applyAttribute(
 			Expression base,
 			TrailerContext t) {
-		return new AttributeAccess(ctx.currentCFG(), support.getLocation(t), base, t.NAME().getText());
+		return new AttributeAccess(ctx.currentCFG(), support.getLocation(t, start(t)), base, t.NAME().getText());
 	}
 
 	private Expression applySubscript(
 			Expression base,
 			TrailerContext t) {
 		List<Subscript_Context> subs = t.subscriptlist().subscript_();
+		ParserContext.SubscriptWrite write = ctx.subscriptWrite();
+		boolean written = write != null && write.subscript() == t;
 		if (subs.size() != 1) {
 			support.unsound(t, "multiple subscripts not supported");
-			return base;
+			if (!written)
+				return base;
 		}
+		// with several indices, only the first is kept (marked above)
 		Expression key = visitSubscript_(subs.get(0));
-		Expression getitemAttr = new AttributeAccess(ctx.currentCFG(), support.getLocation(t), base,
+		if (ParserSupport.containsCall(base))
+			support.limitation(t, "method call on the result of a call");
+		if (ParserSupport.containsCall(key))
+			support.limitation(t, "call nested in the arguments of a call");
+		if (written) {
+			// written, not read: receiver[key] = value is receiver.__setitem__(key,
+			// value), built here so that it is the first parent of the receiver,
+			// the key and the value (LiSA keeps the first parent of an expression)
+			Expression setitemAttr = new AttributeAccess(ctx.currentCFG(), support.getLocation(t, start(t)), base,
+					DunderMethods.SETITEM);
+			return new FunctionApply(ctx.currentCFG(), support.getLocation(t, start(t)), setitemAttr,
+					new Expression[] { base, key, write.value() }, true);
+		}
+		Expression getitemAttr = new AttributeAccess(ctx.currentCFG(), support.getLocation(t, start(t)), base,
 				DunderMethods.GETITEM);
-		return new FunctionApply(ctx.currentCFG(), support.getLocation(t), getitemAttr,
+		return new FunctionApply(ctx.currentCFG(), support.getLocation(t, start(t)), getitemAttr,
 				new Expression[] { base, key }, true);
+	}
+
+	/**
+	 * Yields where the expression a trailer belongs to starts, as CPython
+	 * reports it: at its first atom, after any {@code await}.
+	 */
+	private static Token start(
+			TrailerContext t) {
+		Atom_exprContext expression = (Atom_exprContext) t.getParent();
+		return expression.atom().getStart();
 	}
 
 	private TrailerOutcome applyCall(
@@ -141,8 +170,11 @@ public final class AccessVisitor {
 		if (t.arglist() != null)
 			for (ArgumentContext arg : t.arglist().argument())
 				args.add(visitArgument(arg));
-		args = support.convertAssignmentsToByNameParameters(args);
-		Expression call = new FunctionApply(ctx.currentCFG(), support.getLocation(t), access,
+		if (receiverPrepended && ParserSupport.containsCall(chain[i - 2]))
+			support.limitation(t, "method call on the result of a call");
+		if (args.stream().skip(receiverPrepended ? 1 : 0).anyMatch(ParserSupport::containsCall))
+			support.limitation(t, "call nested in the arguments of a call");
+		Expression call = new FunctionApply(ctx.currentCFG(), support.getLocation(t, start(t)), access,
 				args.toArray(Expression[]::new), receiverPrepended);
 		return TrailerOutcome.of(call);
 	}
@@ -213,14 +245,20 @@ public final class AccessVisitor {
 			Expression left = ctx.expr().visitTest(pctx.test(0));
 			ctx.shouldPrependUnitAccess(prev);
 			Expression right = ctx.expr().visitTest(pctx.test(1));
-			return new it.unive.pylisa.cfg.expression.PyAssign(ctx.currentCFG(), support.getLocation(pctx), left,
-					right);
+			// the value becomes a sub-expression of the call directly: an
+			// intermediate node would become its parent, and it belongs to no
+			// statement, so errors raised by the value would not be the call's
+			return new NamedParameterExpression(ctx.currentCFG(), support.getLocation(pctx), left.toString(), right);
 		}
-		if (pctx.STAR() != null)
+		if (pctx.STAR() != null) {
+			support.limitation(pctx, "unpacked argument (*args)");
 			return new StarExpression(ctx.currentCFG(), support.getLocation(pctx),
 					ctx.expr().visitTest(pctx.test(0)));
-		if (pctx.comp_for() != null || pctx.POWER() != null)
+		}
+		if (pctx.comp_for() != null || pctx.POWER() != null) {
+			support.limitation(pctx, pctx.POWER() != null ? "unpacked keyword arguments (**kw)" : "generator argument");
 			return new Empty(ctx.currentCFG(), support.getLocation(pctx));
+		}
 		// Positional arg: grammar routes this through namedexpr_test so that
 		// `foo(x := bar())` parses. If walrus is actually present, the
 		// namedexpr visitor rejects it (no prelude frame is active at call

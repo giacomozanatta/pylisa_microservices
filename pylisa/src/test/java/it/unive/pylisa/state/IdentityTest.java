@@ -1,6 +1,6 @@
 package it.unive.pylisa.state;
 
-import it.unive.pylisa.testing.AnalysisConfig;
+import it.unive.pylisa.analysis.AnalysisConfig;
 import it.unive.pylisa.testing.StateTestHelper;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;

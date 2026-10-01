@@ -2,9 +2,9 @@ package it.unive.pylisa.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import it.unive.pylisa.testing.AnalysisConfig;
+import it.unive.pylisa.analysis.AnalysisConfig;
+import it.unive.pylisa.analysis.Val;
 import it.unive.pylisa.testing.StateTestHelper;
-import it.unive.pylisa.testing.Val;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 

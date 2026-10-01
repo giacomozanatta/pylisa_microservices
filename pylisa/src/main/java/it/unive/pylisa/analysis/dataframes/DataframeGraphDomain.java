@@ -6,7 +6,6 @@ import it.unive.lisa.lattices.Satisfiability;
 import it.unive.lisa.lattices.heap.allocations.AllocationSite;
 import it.unive.lisa.lattices.heap.allocations.HeapAllocationSite;
 import it.unive.lisa.lattices.heap.allocations.StackAllocationSite;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.cfg.ProgramPoint;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.BinaryExpression;
@@ -55,6 +54,7 @@ import it.unive.pylisa.analysis.dataframes.operations.selection.rows.RowRangeSel
 import it.unive.pylisa.analysis.dataframes.operations.selection.rows.RowSelection;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
 import it.unive.pylisa.libraries.PyLibraryUnitType;
+import it.unive.pylisa.program.PySyntheticLocation;
 import it.unive.pylisa.symbolic.DictConstant;
 import it.unive.pylisa.symbolic.ListConstant;
 import it.unive.pylisa.symbolic.SliceConstant;
@@ -1811,7 +1811,7 @@ public class DataframeGraphDomain /*
 	public static class CloseOperation extends DataframeOperation {
 
 		public CloseOperation() {
-			super(SyntheticLocation.INSTANCE, -3);
+			super(PySyntheticLocation.INSTANCE, -3);
 		}
 
 		@Override

@@ -15,6 +15,8 @@ import it.unive.lisa.symbolic.value.operator.binary.BinaryOperator;
 import it.unive.lisa.symbolic.value.operator.binary.ComparisonEq;
 import it.unive.lisa.symbolic.value.operator.binary.LogicalAnd;
 import it.unive.lisa.symbolic.value.operator.binary.LogicalOr;
+import it.unive.lisa.symbolic.value.operator.binary.NumericNonOverflowingAdd;
+import it.unive.lisa.symbolic.value.operator.binary.NumericNonOverflowingDiv;
 import it.unive.lisa.symbolic.value.operator.binary.NumericNonOverflowingMul;
 import it.unive.lisa.symbolic.value.operator.binary.StringConcat;
 import it.unive.lisa.symbolic.value.operator.binary.StringContains;
@@ -148,6 +150,35 @@ public final class Expressions {
 	 */
 	public SymbolicExpression unknown() {
 		return unknown(Untyped.INSTANCE);
+	}
+
+	/**
+	 * Yields the sum of two numbers, with Python semantics.
+	 *
+	 * @param left  the first addend
+	 * @param right the second addend
+	 *
+	 * @return the sum
+	 */
+	public SymbolicExpression plus(
+			SymbolicExpression left,
+			SymbolicExpression right) {
+		return binary(Untyped.INSTANCE, NumericNonOverflowingAdd.INSTANCE, left, right);
+	}
+
+	/**
+	 * Yields the quotient of two numbers, as Python's true division
+	 * computes it when the dividend is a float.
+	 *
+	 * @param left  the dividend
+	 * @param right the divisor
+	 *
+	 * @return the quotient
+	 */
+	public SymbolicExpression divide(
+			SymbolicExpression left,
+			SymbolicExpression right) {
+		return binary(Untyped.INSTANCE, NumericNonOverflowingDiv.INSTANCE, left, right);
 	}
 
 	/**

@@ -12,6 +12,8 @@ import it.unive.lisa.program.cfg.statement.VariableRef;
 import it.unive.lisa.util.datastructures.graph.GraphVisitor;
 import it.unive.pylisa.analysis.ObjectRegister;
 import it.unive.pylisa.cfg.expression.PyAssign;
+import java.util.Comparator;
+import java.util.Objects;
 
 public class ImportClass extends Expression {
 	private String className;
@@ -62,10 +64,32 @@ public class ImportClass extends Expression {
 		return state;
 	}
 
+	/**
+	 * Orders the bindings of classes by the qualified name of the class they bind: pylisa builds
+	 * them with one synthetic location, and the classes of one module must stay distinct statements.
+	 */
 	@Override
 	protected int compareSameClass(
 			Statement o) {
-		return 0;
+		return Objects.compare(boundName(), ((ImportClass) o).boundName(),
+				Comparator.nullsFirst(Comparator.naturalOrder()));
+	}
+
+	@Override
+	public boolean equals(
+			Object obj) {
+		return this == obj
+				|| super.equals(obj) && getClass() == obj.getClass()
+						&& Objects.equals(boundName(), ((ImportClass) obj).boundName());
+	}
+
+	@Override
+	public int hashCode() {
+		return 31 * super.hashCode() + Objects.hashCode(boundName());
+	}
+
+	private String boundName() {
+		return classUnit == null ? null : classUnit.getName();
 	}
 
 	@Override

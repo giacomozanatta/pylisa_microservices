@@ -3,7 +3,6 @@ package it.unive.pylisa.frontend.statement;
 import it.unive.lisa.program.Program;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.NoOp;
-import it.unive.lisa.program.cfg.statement.Ret;
 import it.unive.lisa.program.cfg.statement.Return;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.cfg.statement.call.Call.CallType;
@@ -51,6 +50,10 @@ public final class FlowControlVisitor {
 		}
 
 		if (pctx.yield_stmt() != null) {
+			// a generator's call returns a generator, not what its body
+			// computes: the function no longer describes the program
+			support.unsound(pctx, "yield treated as no-op");
+			support.markGenerator();
 			Yield_argContext yieldArg = pctx.yield_stmt().yield_expr().yield_arg();
 			if (yieldArg == null) {
 				return new NoOp(ctx.currentCFG(), support.getLocation(pctx));
@@ -78,7 +81,9 @@ public final class FlowControlVisitor {
 	public Statement visitReturn_stmt(
 			Return_stmtContext pctx) {
 		if (pctx.testlist() == null)
-			return new Ret(ctx.currentCFG(), support.getLocation(pctx));
+			// a bare return returns None, or ends a generator
+			return new Return(ctx.currentCFG(), support.getLocation(pctx),
+					support.implicitReturnValue(support.getLocation(pctx)));
 		if (pctx.testlist().test().size() == 1)
 			return new Return(ctx.currentCFG(), support.getLocation(pctx),
 					ctx.expr().visitTest(pctx.testlist().test(0)));
@@ -109,6 +114,7 @@ public final class FlowControlVisitor {
 		// project that uses async generators (notably FastAPI's
 		// `async def lifespan(app): try: yield finally: ...` pattern).
 		support.unsound(pctx, "yield treated as no-op");
+		support.markGenerator();
 		Yield_argContext yieldArg = pctx.yield_expr().yield_arg();
 		if (yieldArg == null)
 			return new NoOp(ctx.currentCFG(), support.getLocation(pctx));

@@ -15,6 +15,7 @@ import it.unive.pylisa.cfg.statement.ImportFunction;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.program.FunctionUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
@@ -122,12 +123,12 @@ public class ClassDef {
 	public ClassUnit toLiSAClassUnit(
 			Program program,
 			CFG init) {
-		ClassUnit unit = new ClassUnit(SyntheticLocation.INSTANCE, program, library.getName() + "." + getName(),
+		ClassUnit unit = new ClassUnit(PySyntheticLocation.INSTANCE, program, library.getName() + "." + getName(),
 				this.sealed);
 
 		PyClassType.register(unit.getName(), unit);
 		program.addUnit(unit);
-		PyCFG classInitCFG = new PyCFG(new CodeMemberDescriptor(SyntheticLocation.INSTANCE, unit, false, "$init"));
+		PyCFG classInitCFG = new PyCFG(new CodeMemberDescriptor(PySyntheticLocation.INSTANCE, unit, false, "$init"));
 
 		unit.addCodeMember(classInitCFG);
 
@@ -137,11 +138,12 @@ public class ClassDef {
 		if (this.base != null)
 			unit.addAncestor(PyClassType.lookup(this.base).getUnit());
 		for (Method mtd : this.methods) {
-			FunctionUnit functionUnit = mtd.toLiSAFunctionUnit(SyntheticLocation.INSTANCE, init, program, unit);
-			Expression target = new PythonScopedAttributeAccessRef(classInitCFG, SyntheticLocation.INSTANCE, unit,
-					new Global(SyntheticLocation.INSTANCE, unit, mtd.getName(), false));
-			PyAssign funcAssign = new PyAssign(classInitCFG, SyntheticLocation.INSTANCE, target,
-					new ImportFunction(classInitCFG, SyntheticLocation.INSTANCE, unit.getName(), functionUnit));
+			FunctionUnit functionUnit = mtd.toLiSAFunctionUnit(PySyntheticLocation.INSTANCE, init, program, unit,
+					library.getName());
+			Expression target = new PythonScopedAttributeAccessRef(classInitCFG, PySyntheticLocation.INSTANCE, unit,
+					new Global(PySyntheticLocation.INSTANCE, unit, mtd.getName(), false));
+			PyAssign funcAssign = new PyAssign(classInitCFG, PySyntheticLocation.INSTANCE, target,
+					new ImportFunction(classInitCFG, PySyntheticLocation.INSTANCE, unit.getName(), functionUnit));
 			classInitCFG.addNode(funcAssign, first == null);
 			if (first == null) {
 				first = funcAssign;
@@ -155,7 +157,7 @@ public class ClassDef {
 			// classInitCFG.addNode();
 
 		}
-		Ret ret = new Ret(classInitCFG, SyntheticLocation.INSTANCE);
+		Ret ret = new Ret(classInitCFG, PySyntheticLocation.INSTANCE);
 		classInitCFG.addNode(ret, first == null);
 		if (last != null) {
 			classInitCFG.addEdge(new SequentialEdge(last, ret));
@@ -175,7 +177,7 @@ public class ClassDef {
 			unit.addAncestor(root);
 
 		for (Method mtd : this.methods) {
-			NativeCFG construct = mtd.toLiSACfg(location, init, unit);
+			NativeCFG construct = mtd.toLiSACfg(location, init, unit, library.getName());
 			if (construct.getDescriptor().isInstance())
 				unit.addInstanceCodeMember(construct);
 			else

@@ -50,6 +50,8 @@ public class PyIn extends BinaryExpression {
 				getCFG(), getLocation(), containsAttr,
 				new Expression[] { collection, element },
 				true);
+		// errors raised by __contains__ belong to this membership test
+		call.setParentStatement(this);
 
 		return call.forwardSemantics(state, interprocedural, expressions);
 	}

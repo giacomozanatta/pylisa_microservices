@@ -176,9 +176,12 @@ public final class BinaryOpVisitor {
 			SourceCodeLocation loc) {
 		Expression left = visitExpr(pctx.expr(0));
 		Expression right = visitExpr(pctx.expr(1));
-		if (op.IN() != null)
+		if (op.IN() != null) {
+			if (ParserSupport.containsCall(left) || ParserSupport.containsCall(right))
+				support.limitation(pctx, "membership test over a call");
 			return negateIf(op.NOT() != null, loc,
 					new PyIn(ctx.currentCFG(), loc, left, right));
+		}
 		if (op.IS() != null)
 			return negateIf(op.NOT() != null, loc,
 					new PyIs(ctx.currentCFG(), loc, left, right));
@@ -403,8 +406,12 @@ public final class BinaryOpVisitor {
 		CFG cfg = ctx.currentCFG();
 		if (link instanceof MulContext)
 			return new PyMultiplication(cfg, location, left, right);
-		if (link instanceof Mat_mulContext)
+		if (link instanceof Mat_mulContext) {
+			// its operands are objects whose __matmul__ is not run: the result
+			// is an unknown value
+			support.limitation(link, "matrix multiplication (@)");
 			return new PyMatMul(cfg, location, left, right);
+		}
 		if (link instanceof DivContext)
 			return new PyDivision(cfg, location, left, right);
 		if (link instanceof ModContext)

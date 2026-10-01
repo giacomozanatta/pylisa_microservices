@@ -2,12 +2,13 @@ package it.unive.pylisa.testing;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.heap.HeapDereference;
 import it.unive.lisa.symbolic.value.HeapLocation;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
+import it.unive.pylisa.analysis.Val;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -58,7 +59,7 @@ public final class Obj {
 	 * @return the type name
 	 */
 	public String type() {
-		Set<Type> types = view.typesOf(new HeapDereference(Untyped.INSTANCE, reference, SyntheticLocation.INSTANCE));
+		Set<Type> types = view.typesOf(new HeapDereference(Untyped.INSTANCE, reference, PySyntheticLocation.INSTANCE));
 		if (types.size() != 1)
 			return fail("Object " + this + " has " + types.size() + " possible types: " + types);
 		return types.iterator().next().toString();
@@ -86,7 +87,8 @@ public final class Obj {
 	 */
 	public Optional<Val> fieldIfSet(
 			String name) {
-		return view.valueOf(StateView.field(reference, name));
+		SymbolicExpression field = StateView.field(reference, name);
+		return view.isStored(field) ? view.valueOf(field) : Optional.empty();
 	}
 
 	/**

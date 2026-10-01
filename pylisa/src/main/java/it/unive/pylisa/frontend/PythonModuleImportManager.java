@@ -1,7 +1,6 @@
 package it.unive.pylisa.frontend;
 
 import it.unive.lisa.program.Program;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.pylisa.cfg.PyCFG;
@@ -9,6 +8,7 @@ import it.unive.pylisa.cfg.type.PyModuleType;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
 import it.unive.pylisa.libraries.loader.Library;
 import it.unive.pylisa.program.ModuleUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import it.unive.pylisa.program.UnknownModuleUnit;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -373,7 +373,7 @@ public class PythonModuleImportManager {
 		// Create and register BEFORE parsing to prevent circular import
 		// re-entry
 		ModuleUnit unit = new ModuleUnit(
-				SyntheticLocation.INSTANCE, program, moduleName);
+				PySyntheticLocation.INSTANCE, program, moduleName);
 		program.addUnit(unit);
 		PyModuleType.register(moduleName, unit);
 		loadedModules.put(moduleName, unit);
@@ -398,12 +398,12 @@ public class PythonModuleImportManager {
 	private ModuleUnit createUnknownModule(
 			String moduleName) {
 		UnknownModuleUnit unit = new UnknownModuleUnit(
-				SyntheticLocation.INSTANCE, program, moduleName);
+				PySyntheticLocation.INSTANCE, program, moduleName);
 		PyCFG initModule = new PyCFG(
-				new CodeMemberDescriptor(SyntheticLocation.INSTANCE, unit, false, "__initmodule__"));
+				new CodeMemberDescriptor(PySyntheticLocation.INSTANCE, unit, false, "__initmodule__"));
 		unit.addCodeMember(initModule);
-		PyCFG initNoOp = new PyCFG(new CodeMemberDescriptor(SyntheticLocation.INSTANCE, unit, false, "$init"));
-		initNoOp.addNode(new it.unive.lisa.program.cfg.statement.Ret(initNoOp, SyntheticLocation.INSTANCE), true);
+		PyCFG initNoOp = new PyCFG(new CodeMemberDescriptor(PySyntheticLocation.INSTANCE, unit, false, "$init"));
+		initNoOp.addNode(new it.unive.lisa.program.cfg.statement.Ret(initNoOp, PySyntheticLocation.INSTANCE), true);
 		unit.addCodeMember(initNoOp);
 		unknownModules.add(moduleName);
 

@@ -132,6 +132,7 @@ public final class FunctionalVisitor {
 				? extractNamesFromVarArgList(pctx.varargslist())
 				: new ArrayList<>();
 		Expression body = visitTest(pctx.test());
+		support.limitation(pctx, "lambda");
 		return new LambdaExpression(args, body, ctx.currentCFG(), support.getLocation(pctx));
 	}
 
@@ -141,6 +142,7 @@ public final class FunctionalVisitor {
 				? extractNamesFromVarArgList(pctx.varargslist())
 				: new ArrayList<>();
 		Expression body = visitTest_nocond(pctx.test_nocond());
+		support.limitation(pctx, "lambda");
 		return new LambdaExpression(args, body, ctx.currentCFG(), support.getLocation(pctx));
 	}
 

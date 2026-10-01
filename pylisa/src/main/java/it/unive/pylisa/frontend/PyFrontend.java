@@ -3,12 +3,9 @@ package it.unive.pylisa.frontend;
 import it.unive.lisa.AnalysisSetupException;
 import it.unive.lisa.program.Program;
 import it.unive.lisa.program.SourceCodeLocation;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.lisa.program.cfg.statement.Ret;
-import it.unive.pylisa.PythonFeatures;
-import it.unive.pylisa.PythonTypeSystem;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyFunctionType;
 import it.unive.pylisa.cfg.type.PyModuleType;
@@ -16,6 +13,9 @@ import it.unive.pylisa.frontend.definition.DefinitionVisitor;
 import it.unive.pylisa.frontend.expression.ExpressionVisitor;
 import it.unive.pylisa.frontend.statement.StatementVisitor;
 import it.unive.pylisa.program.ModuleUnit;
+import it.unive.pylisa.program.ProgramSettings;
+import it.unive.pylisa.program.PyProgram;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -109,9 +109,9 @@ public final class PyFrontend {
 	}
 
 	/**
-	 * Master constructor. Accepts an optional {@code entryModuleName}
-	 * substituting the default {@code "__main__"} identity of the entry
-	 * file. The entry {@link ModuleUnit} is created with that name and
+	 * Builds a frontend whose program carries no settings. Accepts an
+	 * optional {@code entryModuleName} substituting the default
+	 * {@code "__main__"} identity of the entry file. The entry {@link ModuleUnit} is created with that name and
 	 * registered in {@link PyModuleType} under that name, so a later
 	 * import of the same dotted module (e.g. another file doing
 	 * {@code import mcpgateway.main}) resolves directly to the existing
@@ -137,6 +137,49 @@ public final class PyFrontend {
 			String sourceRoot,
 			boolean strict,
 			String entryModuleName) {
+		this(filePath, notebook, cellOrder, sourceRoot, strict, entryModuleName, ProgramSettings.NONE);
+	}
+
+	/**
+	 * Builds a frontend for a Python file whose program carries the given
+	 * settings of the environment it is analysed in, which library models
+	 * read.
+	 *
+	 * @param filePath the path of the Python entry file
+	 * @param settings the settings the translated program carries
+	 */
+	public PyFrontend(
+			String filePath,
+			ProgramSettings settings) {
+		this(filePath, false, Collections.emptyList(), null, false, null, settings);
+	}
+
+	/**
+	 * Master constructor: see
+	 * {@link #PyFrontend(String, boolean, List, String, boolean, String)};
+	 * the translated program also carries the given settings.
+	 *
+	 * @param filePath        the path of the entry file
+	 * @param notebook        whether the entry file is a Jupyter notebook
+	 * @param cellOrder       the order in which the cells of a notebook
+	 *                            run, or empty for their order in the file
+	 * @param sourceRoot      the root of the project's sources, or
+	 *                            {@code null} for the entry file's directory
+	 * @param strict          whether unsound translations fail the
+	 *                            translation
+	 * @param entryModuleName the dotted module name of the entry file, or
+	 *                            {@code null} for {@code "__main__"}
+	 * @param settings        the settings of the environment the program
+	 *                            is analysed in, which library models read
+	 */
+	public PyFrontend(
+			String filePath,
+			boolean notebook,
+			List<Integer> cellOrder,
+			String sourceRoot,
+			boolean strict,
+			String entryModuleName,
+			ProgramSettings settings) {
 		this.filePath = filePath;
 		this.notebook = notebook;
 		this.cellOrder = cellOrder;
@@ -147,7 +190,7 @@ public final class PyFrontend {
 		this.ctx.filePath(filePath);
 		this.ctx.currentFileIsPackage(filePath != null && filePath.endsWith("__init__.py"));
 
-		Program program = new Program(new PythonFeatures(), new PythonTypeSystem());
+		Program program = new PyProgram(settings);
 		this.ctx.program(program);
 		String mainName = (entryModuleName != null && !entryModuleName.isBlank())
 				? entryModuleName
@@ -310,8 +353,8 @@ public final class PyFrontend {
 
 	private static CFG makeInit(
 			Program program) {
-		CFG init = new CFG(new CodeMemberDescriptor(SyntheticLocation.INSTANCE, program, false, "LiSA$init"));
-		init.addNode(new Ret(init, SyntheticLocation.INSTANCE), true);
+		CFG init = new CFG(new CodeMemberDescriptor(PySyntheticLocation.INSTANCE, program, false, "LiSA$init"));
+		init.addNode(new Ret(init, PySyntheticLocation.INSTANCE), true);
 		program.addCodeMember(init);
 		return init;
 	}

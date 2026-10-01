@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.nonrelational.value.ValueEnvironment;
 import it.unive.lisa.lattices.Satisfiability;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.program.type.Int32Type;
 import it.unive.lisa.program.type.StringType;
@@ -26,6 +25,7 @@ import it.unive.lisa.symbolic.value.operator.binary.StringStartsWith;
 import it.unive.lisa.symbolic.value.operator.binary.StringSubstringToEnd;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
+import it.unive.pylisa.program.PySyntheticLocation;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -115,13 +115,13 @@ class ConstantPropagationStringTest {
 		assertEquals(Satisfiability.NOT_SATISFIED, DOMAIN.satisfiesAbstractValue(integer(0), null, null));
 		assertEquals(Satisfiability.SATISFIED, DOMAIN.satisfiesAbstractValue(integer(-2), null, null));
 		assertEquals(Satisfiability.NOT_SATISFIED,
-				DOMAIN.satisfiesConstant(new it.unive.pylisa.symbolic.PyNoneConstant(SyntheticLocation.INSTANCE),
+				DOMAIN.satisfiesConstant(new it.unive.pylisa.symbolic.PyNoneConstant(PySyntheticLocation.INSTANCE),
 						null, null));
 	}
 
 	@Test
 	void assumingAFalseComparisonMakesTheStateUnreachable() throws SemanticException {
-		Variable x = new Variable(StringType.INSTANCE, "x", SyntheticLocation.INSTANCE);
+		Variable x = new Variable(StringType.INSTANCE, "x", PySyntheticLocation.INSTANCE);
 		ValueEnvironment<ConstantPropagation> env = DOMAIN.makeLattice().putState(x, string("a"));
 
 		ValueEnvironment<ConstantPropagation> impossible = DOMAIN.assumeBinaryExpression(env,
@@ -162,7 +162,7 @@ class ConstantPropagationStringTest {
 			BinaryOperator operator,
 			it.unive.lisa.symbolic.value.ValueExpression left,
 			it.unive.lisa.symbolic.value.ValueExpression right) {
-		return new BinaryExpression(Untyped.INSTANCE, left, right, operator, SyntheticLocation.INSTANCE);
+		return new BinaryExpression(Untyped.INSTANCE, left, right, operator, PySyntheticLocation.INSTANCE);
 	}
 
 	private static ConstantPropagation string(
@@ -183,6 +183,6 @@ class ConstantPropagationStringTest {
 	private static Constant constant(
 			Type type,
 			Object value) {
-		return new Constant(type, value, SyntheticLocation.INSTANCE);
+		return new Constant(type, value, PySyntheticLocation.INSTANCE);
 	}
 }

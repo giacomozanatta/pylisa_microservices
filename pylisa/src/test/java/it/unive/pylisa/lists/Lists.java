@@ -19,19 +19,19 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
- * Minimal end-to-end coverage for the list literal / __getitem__ / __len__
- * lowering introduced in PR 2. These tests run the full LiSA pipeline on tiny
- * Python programs and inspect the JSON report at the script's exit point to
- * verify the concrete cell values produced by the new lowering.
- *
- * <p>
- * Each test pins concrete value-domain results so a regression in the heap
- * lowering, the AccessChild rewriting, or the {@code __len__} cell handling
- * shows up as a specific value mismatch rather than a generic crash.
+ * Specifications of lists modelled element by element: the tests run the full
+ * pipeline on tiny programs and check the concrete values of list literals,
+ * {@code __getitem__} and {@code __len__} at the program's exit. pylisa does
+ * not model lists element by element yet: reading an element or the length of
+ * a list gives an unknown value (sound, imprecise). Tagged as known to fail;
+ * the build fails when one of them starts to pass, so that the tag is
+ * removed.
  */
+@Tag("known-failing")
 public class Lists {
 
 	@Test

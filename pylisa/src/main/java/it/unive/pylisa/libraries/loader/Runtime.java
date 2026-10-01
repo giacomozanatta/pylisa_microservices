@@ -73,7 +73,7 @@ public class Runtime {
 		CodeLocation location = new SourceCodeLocation("standard_python_library", 0, 0);
 
 		for (Method mtd : this.methods) {
-			NativeCFG construct = mtd.toLiSACfg(location, init, program);
+			NativeCFG construct = mtd.toLiSACfg(location, init, program, "builtins");
 			if (construct.getDescriptor().isInstance())
 				throw new LibraryCreationException();
 			program.addCodeMember(construct);

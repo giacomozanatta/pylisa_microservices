@@ -1,7 +1,6 @@
 package it.unive.pylisa.frontend.definition;
 
 import it.unive.lisa.program.ClassUnit;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeMemberDescriptor;
@@ -23,6 +22,7 @@ import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
 import it.unive.pylisa.program.FunctionUnit;
 import it.unive.pylisa.program.ModuleUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
@@ -90,6 +90,7 @@ public final class FunctionDefinitionVisitor {
 			ctx.currentUnit(prevUnit);
 			ctx.currentCFG().getNodeList().mergeWith(r.getMiddle());
 			ctx.currentCFG().getEntrypoints().add(r.getLeft());
+			support.returnNoneAtNaturalExits(support.getStopLocation(pctx));
 			support.addRetNodesToCurrentCFG();
 			ctx.cfs().forEach(ctx.currentCFG().getDescriptor()::addControlFlowStructure);
 			ctx.currentCFG().simplify();
@@ -113,7 +114,7 @@ public final class FunctionDefinitionVisitor {
 			target = new VariableRef(ctx.currentCFG(), support.getLocation(pctx), pctx.NAME().getText());
 		}
 		PyAssign funcAssign = new PyAssign(ctx.currentCFG(), support.getLocation(pctx), target,
-				new ImportFunction(ctx.currentCFG(), SyntheticLocation.INSTANCE, unit.getName(), unit));
+				new ImportFunction(ctx.currentCFG(), PySyntheticLocation.INSTANCE, unit.getName(), unit));
 		block.addNode(funcAssign);
 		return Triple.of(funcAssign, block, funcAssign);
 	}

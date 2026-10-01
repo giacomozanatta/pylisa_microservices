@@ -88,7 +88,8 @@ public class Method {
 	public NativeCFG toLiSACfg(
 			CodeLocation location,
 			CFG init,
-			Unit container) {
+			Unit container,
+			String library) {
 		it.unive.lisa.program.cfg.Parameter[] pars = new it.unive.lisa.program.cfg.Parameter[params.size()];
 		for (int i = 0; i < pars.length; i++)
 			pars[i] = this.params.get(i).toLiSAParameter(location, init);
@@ -104,8 +105,8 @@ public class Method {
 		desc.setOverridable(this.sealed);
 
 		try {
-			return new NativeCFG(desc,
-					(Class<? extends NaryExpression>) Class.forName(this.implementation));
+			return new LibraryNativeCFG(desc,
+					(Class<? extends NaryExpression>) Class.forName(this.implementation), library);
 		} catch (ClassNotFoundException e) {
 			throw new LibraryCreationException(e);
 		}
@@ -115,7 +116,8 @@ public class Method {
 			CodeLocation location,
 			CFG init,
 			Program program,
-			Unit container) {
+			Unit container,
+			String library) {
 		it.unive.lisa.program.cfg.Parameter[] pars = new it.unive.lisa.program.cfg.Parameter[params.size()];
 		for (int i = 0; i < pars.length; i++)
 			pars[i] = this.params.get(i).toLiSAParameter(location, init);
@@ -130,8 +132,8 @@ public class Method {
 
 		desc.setOverridable(this.sealed);
 		try {
-			CodeMember function = new NativeCFG(desc,
-					(Class<? extends NaryExpression>) Class.forName(this.implementation));
+			CodeMember function = new LibraryNativeCFG(desc,
+					(Class<? extends NaryExpression>) Class.forName(this.implementation), library);
 			unit.setFunction(function);
 			unit.addCodeMember(function);
 			PyFunctionType.register(container.getName() + "." + getName(), unit);

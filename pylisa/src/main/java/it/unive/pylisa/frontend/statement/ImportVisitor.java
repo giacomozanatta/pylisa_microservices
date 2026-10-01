@@ -1,9 +1,5 @@
 package it.unive.pylisa.frontend.statement;
-
-import it.unive.lisa.program.SyntheticLocation;
-import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.lisa.program.cfg.statement.Expression;
-import it.unive.lisa.program.cfg.statement.NoOp;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.pylisa.antlr.Python3Parser.Dotted_as_nameContext;
 import it.unive.pylisa.antlr.Python3Parser.Dotted_as_namesContext;
@@ -13,14 +9,12 @@ import it.unive.pylisa.antlr.Python3Parser.Import_as_namesContext;
 import it.unive.pylisa.antlr.Python3Parser.Import_fromContext;
 import it.unive.pylisa.antlr.Python3Parser.Import_nameContext;
 import it.unive.pylisa.antlr.Python3Parser.Import_stmtContext;
-import it.unive.pylisa.cfg.PyCFG;
 import it.unive.pylisa.cfg.expression.AttributeAccess;
 import it.unive.pylisa.cfg.statement.FromImport;
 import it.unive.pylisa.cfg.statement.ImportModule;
 import it.unive.pylisa.cfg.type.PyModuleType;
 import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
-import it.unive.pylisa.frontend.expression.DunderMethods;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
 import it.unive.pylisa.program.ModuleUnit;
 import java.util.HashMap;
@@ -89,9 +83,13 @@ public final class ImportVisitor {
 
 		if (pctx.import_as_names() == null) {
 			LibrarySpecificationProvider.importLibrary(ctx.program(), name, ctx.init());
-			PyCFG pyCFG = new PyCFG(
-					new CodeMemberDescriptor(support.getLocation(pctx), ctx.currentUnit(), false, DunderMethods.INIT));
-			pyCFG.addNode(new NoOp(pyCFG, SyntheticLocation.INSTANCE));
+			if (!PyModuleType.isRegistered(name)) {
+				// found as any other import: a project file, a module provider,
+				// or else a module the analysis does not know; the names such a
+				// star import binds are not bound
+				ctx.importManager().importModule(name);
+				support.limitation(pctx, "star import (the names it binds are not bound)");
+			}
 			return new ImportModule(ctx.currentCFG(), support.getLocation(pctx), name,
 					(ModuleUnit) PyModuleType.lookup(name).getUnit());
 		}

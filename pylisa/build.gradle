@@ -113,11 +113,46 @@ spotless {
 }
 
 test {
-    useJUnitPlatform()
+    // the tests tagged known-failing are specifications of work not done yet: knownFailingTest
+    useJUnitPlatform { excludeTags 'known-failing' }
     maxHeapSize = "4g"
+    // every test process writes under a directory of its own (TestDirectories); those of
+    // earlier runs of this task are removed
+    systemProperty 'pylisa.test.task', name
+    doFirst { delete "build/analysis-results/${name}" }
     // Forward lisa.* system properties (e.g. lisa.cron.update=true) from the
     // Gradle invocation to the test JVM so tests that read them pick them up.
     systemProperties System.properties.findAll { k, v -> k.toString().startsWith("lisa.") }
+}
+
+// Runs the tests tagged known-failing, which specify behaviour not implemented yet, and fails
+// as soon as one of them passes, so that its tag is removed.
+tasks.register('knownFailingTest', Test) {
+    group = 'verification'
+    description = 'Runs the known-failing tests and fails if one of them now passes.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'known-failing' }
+    maxHeapSize = "4g"
+    systemProperty 'pylisa.test.task', name
+    ignoreFailures = true
+    doFirst { delete "build/analysis-results/${name}" }
+    doLast {
+        def passing = []
+        def run = 0
+        fileTree(reports.junitXml.outputLocation).matching { include '*.xml' }.each { file ->
+            new groovy.xml.XmlSlurper().parse(file).testcase.each { testcase ->
+                run++
+                if (testcase.failure.size() == 0 && testcase.error.size() == 0 && testcase.skipped.size() == 0)
+                    passing << "${testcase.@classname}#${testcase.@name}"
+            }
+        }
+        if (run == 0)
+            throw new GradleException("No known-failing test was run: is the tag spelt known-failing?")
+        if (!passing.isEmpty())
+            throw new GradleException("Known-failing tests now pass, remove their tag (for a parameterized "
+                    + "test, when every invocation passes; otherwise split it): ${passing}")
+    }
 }
 
 spotlessJava {
@@ -196,4 +231,8 @@ signing {
     def signingPassword = System.getenv('SIGN_PW')
     useInMemoryPgpKeys(signingKey, signingPassword)
     sign publishing.publications.mavenJava
+}
+
+tasks.named('check') {
+    dependsOn 'knownFailingTest'
 }

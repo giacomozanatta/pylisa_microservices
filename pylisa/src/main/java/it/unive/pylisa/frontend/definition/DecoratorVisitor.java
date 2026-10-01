@@ -55,11 +55,10 @@ public final class DecoratorVisitor {
 			// — e.g. {@code @site.register_admin} registers the class with an
 			// admin router, {@code @strawberry.type} marks it as a GraphQL
 			// type, custom registry decorators install side-effecting hooks.
-			// We log every occurrence (with location and decorator names) so
-			// the missing modeling is visible in the run output, then visit
-			// the classdef as if undecorated to keep the rest of the analysis
-			// reachable. Same shape as {@code ControlFlowVisitor}'s
-			// "skip unsupported statement" path.
+			// Each occurrence is marked as a known limitation of its function
+			// (and logged with the decorator names), then the classdef is
+			// visited as if undecorated to keep the rest of the analysis
+			// reachable.
 			List<DecoratorContext> decorators = pctx.decorators().decorator();
 			String names = decorators.stream()
 					.map(DecoratorVisitor::decoratorName)
@@ -68,6 +67,7 @@ public final class DecoratorVisitor {
 					+ "will proceed as if the class were undecorated (UNSOUND for "
 					+ "decorators with side effects, e.g. registry/handler installation)",
 					decorators.size(), support.getLocation(pctx), names);
+			support.limitation(pctx, "class decorator not applied");
 			return ctx.def().visitClassdef(pctx.classdef());
 		} else if (pctx.async_funcdef() != null) {
 			Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> funcDef = ctx.def()
@@ -127,7 +127,6 @@ public final class DecoratorVisitor {
 			if (pctx.arglist() != null)
 				for (ArgumentContext arg : pctx.arglist().argument())
 					params.add(ctx.expr().visitArgument(arg));
-			params = support.convertAssignmentsToByNameParameters(params);
 			return new FunctionApply(ctx.currentCFG(), support.getLocation(pctx), result,
 					params.toArray(Expression[]::new));
 		}
@@ -137,7 +136,6 @@ public final class DecoratorVisitor {
 		if (pctx.arglist() != null)
 			for (ArgumentContext arg : pctx.arglist().argument())
 				params.add(ctx.expr().visitArgument(arg));
-		params = support.convertAssignmentsToByNameParameters(params);
 		return new FunctionApply(ctx.currentCFG(), support.getLocation(pctx), result,
 				params.toArray(Expression[]::new));
 	}

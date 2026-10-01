@@ -1,11 +1,21 @@
-package it.unive.pylisa.testing;
+package it.unive.pylisa.analysis;
 
+import it.unive.lisa.analysis.AbstractDomain;
+import it.unive.lisa.analysis.AbstractLattice;
+import it.unive.lisa.analysis.Analysis;
+import it.unive.lisa.analysis.AnalysisState;
 import it.unive.lisa.analysis.Lattice;
+import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.combination.ValueLatticeProduct;
 import it.unive.lisa.analysis.nonrelational.value.ValueEnvironment;
 import it.unive.lisa.analysis.string.BoundedStringSet;
+import it.unive.lisa.lattices.SimpleAbstractState;
+import it.unive.lisa.program.cfg.ProgramPoint;
+import it.unive.lisa.symbolic.SymbolicExpression;
+import it.unive.lisa.symbolic.value.Constant;
 import it.unive.lisa.symbolic.value.Identifier;
 import it.unive.pylisa.analysis.constants.ConstantPropagation;
+import java.util.Optional;
 
 /**
  * Reads the abstract value that a value domain associates with an identifier,
@@ -32,6 +42,49 @@ public interface ValueReader {
 	Val read(
 			Lattice<?> valueState,
 			Identifier identifier);
+
+	/**
+	 * Reads the value of an expression in a state: every expression the heap
+	 * rewrites it to is read, an identifier with this reader and a constant as
+	 * it is; any other expression is unknown.
+	 *
+	 * @param <A>        the kind of abstract state
+	 * @param <D>        the kind of abstract domain
+	 * @param analysis   the analysis that computed the state
+	 * @param state      the state, made of heap, value and type components
+	 * @param expression the expression
+	 * @param point      the program point of the state
+	 *
+	 * @return the join of the values, or empty if no execution gives the
+	 *             expression a value
+	 *
+	 * @throws SemanticException     if the expression cannot be rewritten
+	 * @throws IllegalStateException if the state is not made of heap, value
+	 *                                   and type components
+	 */
+	default <A extends AbstractLattice<A>, D extends AbstractDomain<A>> Optional<Val> valueOf(
+			Analysis<A, D> analysis,
+			AnalysisState<A> state,
+			SymbolicExpression expression,
+			ProgramPoint point)
+			throws SemanticException {
+		if (!(state.getExecutionState() instanceof SimpleAbstractState<?, ?, ?> components))
+			throw new IllegalStateException("Only states made of heap, value and type components are supported, got "
+					+ state.getExecutionState().getClass().getName());
+		Val result = null;
+		for (SymbolicExpression denoted : analysis.rewrite(state, expression, point)) {
+			Val value;
+			if (denoted instanceof Identifier identifier)
+				value = read(components.valueState, identifier);
+			else if (denoted instanceof Constant constant)
+				value = Val.exact(constant.getValue());
+			else
+				value = Val.top();
+			if (value != null)
+				result = result == null ? value : result.join(value);
+		}
+		return Optional.ofNullable(result);
+	}
 
 	/**
 	 * Yields the reader for pylisa's {@link ConstantPropagation}.

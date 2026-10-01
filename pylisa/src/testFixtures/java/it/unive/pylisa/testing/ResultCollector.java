@@ -11,6 +11,7 @@ import it.unive.lisa.checks.semantic.SemanticCheck;
 import it.unive.lisa.checks.semantic.SemanticTool;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.statement.Statement;
+import it.unive.pylisa.analysis.ValueReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;

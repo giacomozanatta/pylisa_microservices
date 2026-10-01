@@ -38,6 +38,13 @@ public final class DiagnosticReporter {
 		 * that may affect analysis correctness.
 		 */
 		UNSOUND,
+		/**
+		 * Known limitation: the frontend translates a construct in a known
+		 * unsound way that does not weaken the analysis; results near it may
+		 * be wrong in either direction, and readers list it. Strict mode does
+		 * not reject it.
+		 */
+		LIMITATION,
 		/** Unsupported: the grammar feature is not yet implemented. */
 		UNSUPPORTED
 	}

@@ -5,36 +5,48 @@ import it.unive.lisa.program.CompilationUnit;
 import it.unive.lisa.program.Global;
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.annotations.Annotation;
+import it.unive.lisa.program.annotations.AnnotationMember;
+import it.unive.lisa.program.annotations.values.StringAnnotationValue;
+import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.lisa.program.cfg.VariableTableEntry;
 import it.unive.lisa.program.cfg.controlFlow.ControlFlowStructure;
 import it.unive.lisa.program.cfg.edge.SequentialEdge;
-import it.unive.lisa.program.cfg.statement.Assignment;
 import it.unive.lisa.program.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.Ret;
+import it.unive.lisa.program.cfg.statement.Return;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.cfg.statement.VariableRef;
-import it.unive.lisa.program.cfg.statement.call.NamedParameterExpression;
 import it.unive.lisa.program.cfg.statement.literal.StringLiteral;
 import it.unive.lisa.program.type.StringType;
 import it.unive.lisa.type.Untyped;
-import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
 import it.unive.pylisa.UnsupportedStatementException;
+import it.unive.pylisa.antlr.Python3Parser.Atom_exprContext;
+import it.unive.pylisa.antlr.Python3Parser.TrailerContext;
 import it.unive.pylisa.antlr.Python3Parser.DictorsetmakerContext;
 import it.unive.pylisa.cfg.PyCFG;
 import it.unive.pylisa.cfg.PyParameter;
 import it.unive.pylisa.cfg.expression.PyStringLiteral;
+import it.unive.pylisa.cfg.expression.literal.PyNoneLiteral;
+import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
+import it.unive.pylisa.cfg.statement.FunctionApply;
 import it.unive.pylisa.cfg.statement.PyNameRef;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
 import it.unive.pylisa.program.FunctionUnit;
 import it.unive.pylisa.program.ModuleUnit;
+import it.unive.pylisa.program.PySourceCodeLocation;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -50,11 +62,31 @@ import org.apache.logging.log4j.Logger;
 public final class ParserSupport {
 
 	/**
+	 * The functions translated so far whose body contains {@code yield}: their
+	 * calls return a generator, not what their body computes.
+	 */
+	private final Set<CFG> generators = new HashSet<>();
+
+
+	/**
 	 * The annotation of a function (or module body) part of which the
 	 * frontend translated unsoundly: its analysis may miss executions of the
 	 * program.
 	 */
 	public static final String UNSOUND_TRANSLATION = "pylisa.unsound-translation";
+
+	/**
+	 * The annotation of a function in which a construct is translated in a
+	 * known unsound way that does not weaken the analysis: results near it
+	 * may be wrong in either direction, and readers list it.
+	 */
+	public static final String KNOWN_LIMITATION = "pylisa.known-limitation";
+
+	/**
+	 * The member of a {@link #KNOWN_LIMITATION} or
+	 * {@link #UNSOUND_TRANSLATION} annotation naming the construct.
+	 */
+	public static final String CONSTRUCT = "construct";
 
 	private static final Logger LOG = LogManager.getLogger(ParserSupport.class);
 
@@ -77,14 +109,35 @@ public final class ParserSupport {
 		return pctx.getStop().getCharPositionInLine();
 	}
 
+	/**
+	 * Yields the location of a construct.
+	 *
+	 * @param pctx the construct
+	 *
+	 * @return the location
+	 */
 	public SourceCodeLocation getLocation(
 			ParserRuleContext pctx) {
-		// Read the source file from the token's CharStream. This stays correct
-		// when `loadProjectModuleFile` recursively re-enters the visitor on a
-		// sub-module (config.py, logging.py, …) — those tokens come from a
-		// different CharStream whose name is the sub-module path. Falling back
-		// to the frontend's own filePath would stamp every sub-module node
-		// with the entry file's path (the bug this guards against).
+		return getLocation(pctx, pctx.getStart());
+	}
+
+	/**
+	 * Yields the location of a construct that is part of a larger one, such as
+	 * the argument list of a call: its line and end column are those of the
+	 * part, which tell constructs apart, and its start is the given token,
+	 * the start of the whole construct, where reports point.
+	 *
+	 * @param pctx  the part
+	 * @param start the first token of the whole construct
+	 *
+	 * @return the location
+	 */
+	public SourceCodeLocation getLocation(
+			ParserRuleContext pctx,
+			Token start) {
+		// the source file comes from the token's stream, so that a sub-module
+		// translated while the entry file is being translated gets its own
+		// path
 		String source = ctx.filePath();
 		if (pctx != null && pctx.getStart() != null) {
 			org.antlr.v4.runtime.CharStream cs = pctx.getStart().getInputStream();
@@ -94,7 +147,8 @@ public final class ParserSupport {
 					source = csName;
 			}
 		}
-		return new SourceCodeLocation(source, getLine(pctx), getCol(pctx));
+		return new PySourceCodeLocation(source, getLine(pctx), getCol(pctx), start.getLine(),
+				start.getCharPositionInLine());
 	}
 
 	/**
@@ -123,7 +177,8 @@ public final class ParserSupport {
 		// Bump col by 1 to differ from any token-aligned location at the
 		// stop position; SourceCodeLocation rejects -1, but any other value
 		// is fine.
-		return new SourceCodeLocation(source, Math.max(line, 0), Math.max(col, 0) + 1);
+		return new PySourceCodeLocation(source, Math.max(line, 0), Math.max(col, 0) + 1, Math.max(line, 0),
+				Math.max(col, 0));
 	}
 
 	// === diagnostics ===
@@ -141,20 +196,101 @@ public final class ParserSupport {
 				description + " at line " + getLine(pctx) + " of " + ctx.filePath());
 	}
 
+	/**
+	 * Marks the function being translated as no longer describing the
+	 * program faithfully: analyses reading its results weaken them. The mark
+	 * names the construct by the description.
+	 *
+	 * @param pctx        the construct translated unsoundly
+	 * @param description what the translation drops or approximates
+	 */
 	public void unsound(
 			ParserRuleContext pctx,
 			String description) {
+		mark(pctx, new Annotation(UNSOUND_TRANSLATION,
+				List.of(new AnnotationMember(CONSTRUCT, new StringAnnotationValue(description)))),
+				DiagnosticReporter.Severity.UNSOUND, description, "unsound translation");
+	}
+
+	/**
+	 * Marks the function being translated as containing a construct that the
+	 * frontend translates in a known unsound way without weakening the
+	 * analysis, such as a call whose arguments contain another call (the
+	 * inner call is evaluated more than once).
+	 *
+	 * @param pctx      the construct
+	 * @param construct the name of the construct, as readers report it
+	 */
+	public void limitation(
+			ParserRuleContext pctx,
+			String construct) {
+		mark(pctx, new Annotation(KNOWN_LIMITATION,
+				List.of(new AnnotationMember(CONSTRUCT, new StringAnnotationValue(construct)))),
+				DiagnosticReporter.Severity.LIMITATION, construct, "known frontend limitation");
+	}
+
+	private void mark(
+			ParserRuleContext pctx,
+			Annotation annotation,
+			DiagnosticReporter.Severity severity,
+			String description,
+			String kind) {
 		SourceCodeLocation loc = getLocation(pctx);
-		// the function being translated no longer describes the program
-		// faithfully: analyses reading its results must know it
-		if (ctx.currentCFG() != null)
-			ctx.currentCFG().getDescriptor().addAnnotation(new Annotation(UNSOUND_TRANSLATION));
-		ctx.reporter().report(
-				DiagnosticReporter.Severity.UNSOUND,
-				loc,
-				featureLabel(description, pctx),
-				description + " (unsound translation) at line "
-						+ getLine(pctx) + " of " + ctx.filePath());
+		// a mark outside any function would be lost, and readers would take
+		// the translation as faithful
+		if (ctx.currentCFG() == null)
+			throw new IllegalStateException(description + " (" + kind + ") at " + loc
+					+ " outside any function: the mark would be lost");
+		ctx.currentCFG().getDescriptor().addAnnotation(annotation);
+		ctx.reporter().report(severity, loc, featureLabel(description, pctx),
+				description + " (" + kind + ") at line " + getLine(pctx) + " of " + ctx.filePath());
+	}
+
+	/**
+	 * Yields the subscript an assignment target writes to, when the target is
+	 * a subscript: the last trailer of {@code receiver[key]}, reached through
+	 * the single-child nodes the grammar wraps a plain expression in.
+	 *
+	 * @param target the target of the assignment
+	 *
+	 * @return the subscript trailer, or {@code null} if the target is not a
+	 *             subscript
+	 */
+	public static TrailerContext writtenSubscript(
+			ParseTree target) {
+		ParseTree node = target;
+		while (!(node instanceof Atom_exprContext) && node.getChildCount() == 1)
+			node = node.getChild(0);
+		if (!(node instanceof Atom_exprContext expression) || expression.trailer().isEmpty())
+			return null;
+		TrailerContext last = expression.trailer(expression.trailer().size() - 1);
+		return last.OPEN_BRACK() != null ? last : null;
+	}
+
+	/**
+	 * Yields whether an expression contains a call to anything but
+	 * {@code super}, whose repeated evaluation has no effect.
+	 *
+	 * @param expression the expression
+	 *
+	 * @return {@code true} if it contains such a call
+	 */
+	public static boolean containsCall(
+			Expression expression) {
+		if (expression instanceof FunctionApply call && !isSuperCall(call))
+			return true;
+		if (expression instanceof NaryExpression nary)
+			for (Expression sub : nary.getSubExpressions())
+				if (containsCall(sub))
+					return true;
+		return false;
+	}
+
+	private static boolean isSuperCall(
+			FunctionApply call) {
+		return call.getSubExpressions().length > 0
+				&& call.getSubExpressions()[0] instanceof PyNameRef name
+				&& "super".equals(name.getName());
 	}
 
 	/**
@@ -339,18 +475,6 @@ public final class ParserSupport {
 		return pctx == null || pctx.test().size() == 2 * pctx.COLON().size();
 	}
 
-	public List<Expression> convertAssignmentsToByNameParameters(
-			List<Expression> pars) {
-		List<Expression> converted = new java.util.ArrayList<>(pars.size());
-		for (Expression e : pars)
-			if (!(e instanceof Assignment))
-				converted.add(e);
-			else
-				converted.add(new NamedParameterExpression(e.getCFG(), e.getLocation(),
-						((Assignment) e).getLeft().toString(), ((Assignment) e).getRight()));
-		return converted;
-	}
-
 	public static String transformToCode(
 			List<String> codeList) {
 		return String.join("\n", codeList) + "\n";
@@ -375,6 +499,55 @@ public final class ParserSupport {
 	}
 
 	// === CFG finalisation ===
+
+	/**
+	 * Records that the function being translated contains {@code yield}.
+	 */
+	public void markGenerator() {
+		generators.add(ctx.currentCFG());
+	}
+
+	/**
+	 * Yields the value a {@code return} without a value gives in the function
+	 * being translated: {@code None}, or an unknown value for a generator, whose
+	 * call returns a generator object.
+	 *
+	 * @param location the location of the value
+	 *
+	 * @return the value
+	 */
+	public Expression implicitReturnValue(
+			CodeLocation location) {
+		if (generators.contains(ctx.currentCFG()))
+			return new PyUnknownLiteral(ctx.currentCFG(), location, "generator", Untyped.INSTANCE);
+		return new PyNoneLiteral(ctx.currentCFG(), location);
+	}
+
+	/**
+	 * Makes every point where the body of the function being translated ends
+	 * without a {@code return} return {@code None} (an unknown value for a
+	 * generator), as Python does: every node
+	 * without followers that does not stop the execution (statements after a
+	 * {@code return}, which no execution reaches, included) flows into one
+	 * {@code return None} at the given location.
+	 *
+	 * @param location the location of the implicit return, distinct from the
+	 *                     locations of the statements of the body
+	 */
+	public void returnNoneAtNaturalExits(
+			SourceCodeLocation location) {
+		PyCFG currentCFG = ctx.currentCFG();
+		Collection<Statement> exits = new LinkedList<>();
+		for (Statement st : currentCFG.getNodes())
+			if (!st.stopsExecution() && currentCFG.followersOf(st).isEmpty())
+				exits.add(st);
+		if (exits.isEmpty())
+			return;
+		Return implicit = new Return(currentCFG, location, implicitReturnValue(location));
+		currentCFG.addNode(implicit);
+		for (Statement exit : exits)
+			currentCFG.addEdge(new SequentialEdge(exit, implicit));
+	}
 
 	public void addRetNodesToCurrentCFG() {
 		PyCFG currentCFG = ctx.currentCFG();

@@ -30,11 +30,16 @@ import it.unive.lisa.type.ReferenceType;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyExceptionType;
+import it.unive.pylisa.program.PyProgram;
 import it.unive.pylisa.symbolic.PyNoneConstant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * One analysis state inside the model of a library call, together with the
@@ -91,6 +96,12 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	private final Statement call;
 
 	/**
+	 * The assumptions of the environment that the executions of this state
+	 * need not satisfy: they exist because each of them may not hold.
+	 */
+	private final SortedSet<String> marks;
+
+	/**
 	 * Builds the state.
 	 *
 	 * @param analysis the analysis computing the state
@@ -104,10 +115,81 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			AnalysisState<A> state,
 			ProgramPoint point,
 			Statement call) {
+		this(analysis, state, point, call, Collections.emptySortedSet());
+	}
+
+	private ModelState(
+			Analysis<A, D> analysis,
+			AnalysisState<A> state,
+			ProgramPoint point,
+			Statement call,
+			SortedSet<String> marks) {
 		this.analysis = analysis;
 		this.state = state;
 		this.point = point;
 		this.call = call;
+		this.marks = marks;
+	}
+
+	/**
+	 * Yields this state as the executions that exist because an assumption of
+	 * the environment may not hold: the errors raised from it, in this model
+	 * call, are recorded as depending on that assumption.
+	 *
+	 * @param assumption the name of the assumption
+	 *
+	 * @return the state
+	 */
+	public ModelState<A, D> assuming(
+			String assumption) {
+		SortedSet<String> more = new TreeSet<>(marks);
+		more.add(assumption);
+		return new ModelState<>(analysis, state, point, call, Collections.unmodifiableSortedSet(more));
+	}
+
+	/**
+	 * Sets a carried mark (see {@link CarriedMarks}) on the executions of this
+	 * state: the model calls that follow, on executions where it is set, start
+	 * with it.
+	 *
+	 * @param name the name of the mark, one of the program's carried marks
+	 *
+	 * @return the state with the mark set
+	 *
+	 * @throws SemanticException if the mark cannot be set
+	 */
+	public ModelState<A, D> carry(
+			String name)
+			throws SemanticException {
+		// a flag the program's entry does not unset could be read as set on a
+		// join with executions that never set it
+		if (!(call.getProgram() instanceof PyProgram)
+				|| !setting(CarriedMarks.class).orElse(CarriedMarks.NONE).names().contains(name))
+			throw new SemanticException("The model of " + call + " at " + call.getLocation() + " carries the mark "
+					+ name + ", which the program does not carry");
+		return assign(CarriedMarks.flag(name, call.getLocation()), new Expressions(call.getLocation()).bool(true));
+	}
+
+	/**
+	 * Yields this state with the carried marks (see {@link CarriedMarks}) that
+	 * are set on every one of its executions.
+	 *
+	 * @return the state with those marks
+	 *
+	 * @throws SemanticException if a mark cannot be read
+	 */
+	ModelState<A, D> withCarriedMarks()
+			throws SemanticException {
+		ModelState<A, D> result = this;
+		Expressions build = new Expressions(call.getLocation());
+		// a program that pylisa did not translate carries no settings
+		if (!(call.getProgram() instanceof PyProgram))
+			return result;
+		for (String name : setting(CarriedMarks.class).orElse(CarriedMarks.NONE).names())
+			if (satisfies(build.equal(CarriedMarks.flag(name, call.getLocation()), build.bool(true)))
+					== Satisfiability.SATISFIED)
+				result = result.assuming(name);
+		return result;
 	}
 
 	/**
@@ -138,6 +220,20 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	}
 
 	/**
+	 * Yields a setting of the environment the analysed program runs in, as
+	 * the client of the analysis gave it with the program.
+	 *
+	 * @param <T>  the type of the setting
+	 * @param type the type the setting was registered under
+	 *
+	 * @return the setting, or empty if the client gave none of that type
+	 */
+	public <T> Optional<T> setting(
+			Class<T> type) {
+		return PyProgram.setting(call, type);
+	}
+
+	/**
 	 * Yields the state that describes no execution continuing normally, but
 	 * keeps the errors raised so far.
 	 *
@@ -160,7 +256,21 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	public ModelState<A, D> lub(
 			ModelState<A, D> other)
 			throws SemanticException {
-		return with(state.lub(other.state));
+		// the join depends only on the assumptions both parts depend on; a
+		// part with no execution continuing adds no execution to depend on
+		SortedSet<String> common;
+		if (isUnreachable())
+			// when both parts are unreachable the marks are those of the other
+			// part: harmless, since nothing is raised from an unreachable state
+			common = other.marks;
+		else if (other.isUnreachable())
+			common = marks;
+		else {
+			SortedSet<String> both = new TreeSet<>(marks);
+			both.retainAll(other.marks);
+			common = Collections.unmodifiableSortedSet(both);
+		}
+		return new ModelState<>(analysis, state.lub(other.state), point, call, common);
 	}
 
 	/**
@@ -172,17 +282,26 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	 * @param values the values
 	 * @param step   the step
 	 *
-	 * @return the join of the outcomes, unreachable if there are no values
+	 * @return the join of the outcomes, unreachable if this state is
+	 *             unreachable
 	 *
-	 * @throws SemanticException if a step fails
+	 * @throws SemanticException if a step fails, or if there are no values
+	 *                               although an execution reaches this state
 	 */
 	public <T> ModelState<A, D> forEach(
 			Iterable<T> values,
 			Step<A, D, T> step)
 			throws SemanticException {
 		ModelState<A, D> result = unreachable();
-		for (T value : values)
+		boolean any = false;
+		for (T value : values) {
+			any = true;
 			result = result.lub(step.apply(this, value));
+		}
+		if (!any && !isUnreachable())
+			// an execution reaches this point, so it must continue somehow
+			throw new SemanticException("A model of " + call + " at " + call.getLocation()
+					+ " iterates over no values in a reachable state");
 		return result;
 	}
 
@@ -194,10 +313,11 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	 * @param arguments the possible values of each argument
 	 * @param step      the step, receiving one value per argument, in order
 	 *
-	 * @return the join of the outcomes, unreachable if an argument has no
-	 *             value
+	 * @return the join of the outcomes, unreachable if this state is
+	 *             unreachable
 	 *
-	 * @throws SemanticException if a step fails
+	 * @throws SemanticException if a step fails, or if an argument has no values
+	 *                               although an execution reaches this state
 	 */
 	public ModelState<A, D> forEachCombination(
 			List<ExpressionSet> arguments,
@@ -237,6 +357,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			Type type,
 			CodeLocation site)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here: nothing happens
+			return unreachable();
 		MemoryAllocation allocation = new MemoryAllocation(type, site, false);
 		// the allocation is resolved to its abstract site before it happens:
 		// resolving it again afterwards would find the site already allocated
@@ -268,7 +391,13 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			SymbolicExpression reference,
 			String name)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here: nothing happens
+			return unreachable();
 		AnalysisState<A> located = analysis.smallStepSemantics(state, field(reference, name), point);
+		if (located.getExecutionExpressions().isEmpty())
+			throw new SemanticException("A model of " + call + " at " + call.getLocation() + " reads field " + name
+					+ " and finds no values in a reachable state");
 		boolean placeholder = false;
 		for (SymbolicExpression location : located.getExecutionExpressions())
 			placeholder |= isPlaceholder(location);
@@ -299,6 +428,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			String name,
 			SymbolicExpression value)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here: nothing happens
+			return unreachable();
 		AnalysisState<A> located = analysis.smallStepSemantics(state, field(reference, name), point);
 		// a value read from a field (such as the receiver of
 		// self.client.call_async(...)) is first resolved to the location of
@@ -335,6 +467,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 			Identifier variable,
 			SymbolicExpression value)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here: nothing happens
+			return unreachable();
 		return with(analysis.assign(state, variable, value, point));
 	}
 
@@ -350,6 +485,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	public ModelState<A, D> assume(
 			SymbolicExpression condition)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here: nothing happens
+			return unreachable();
 		return with(analysis.assume(state, condition, point, point));
 	}
 
@@ -365,6 +503,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	public ModelState<A, D> assumeNot(
 			SymbolicExpression condition)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here: nothing happens
+			return unreachable();
 		return assume(new UnaryExpression(BoolType.INSTANCE, condition, LogicalNegation.INSTANCE,
 				call.getLocation()));
 	}
@@ -431,6 +572,10 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 		if (!types.isEmpty() && types.stream().allMatch(t -> t.isPointerType() || t.isStringType()
 				|| t.isNumericType() || t.isBooleanType()))
 			return otherwise.apply(this, value);
+		// the value domains do not track references: comparing one that may
+		// be an object with None decides nothing
+		if (types.stream().anyMatch(Type::isPointerType))
+			return whenNone.apply(this, value).lub(otherwise.apply(this, value));
 		CodeLocation location = call.getLocation();
 		return branch(new BinaryExpression(BoolType.INSTANCE, value, new PyNoneConstant(location),
 				ComparisonEq.INSTANCE, location), whenNone, otherwise);
@@ -569,7 +714,10 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 		// the values computed so far are not the value of anything once the
 		// call raises
 		AnalysisState<A> cleared = analysis.smallStepSemantics(state, new Skip(call.getLocation()), point);
-		return with(analysis.moveExecutionToError(cleared, new AnalysisState.Error(type, call), point));
+		// an error of a branch that depends on assumptions is kept apart from
+		// the errors the call raises whatever they are
+		Statement thrower = marks.isEmpty() ? call : new AssumptionBranch(call, marks);
+		return with(analysis.moveExecutionToError(cleared, new AnalysisState.Error(type, thrower), point));
 	}
 
 	/**
@@ -584,6 +732,9 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 	public ModelState<A, D> returning(
 			SymbolicExpression value)
 			throws SemanticException {
+		if (isUnreachable())
+			// no execution gets here: nothing happens
+			return unreachable();
 		return with(analysis.smallStepSemantics(state, value, point));
 	}
 
@@ -606,6 +757,6 @@ public final class ModelState<A extends AbstractLattice<A>, D extends AbstractDo
 
 	private ModelState<A, D> with(
 			AnalysisState<A> next) {
-		return new ModelState<>(analysis, next, point, call);
+		return new ModelState<>(analysis, next, point, call, marks);
 	}
 }

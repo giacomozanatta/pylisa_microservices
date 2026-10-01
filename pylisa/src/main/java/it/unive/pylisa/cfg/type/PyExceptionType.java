@@ -56,9 +56,26 @@ public final class PyExceptionType implements Type {
 	public static final PyExceptionType VALUE_ERROR = subclass("builtins.ValueError", EXCEPTION);
 
 	/**
+	 * {@code KeyboardInterrupt}, raised when the process receives SIGINT.
+	 */
+	public static final PyExceptionType KEYBOARD_INTERRUPT = subclass("builtins.KeyboardInterrupt", BASE_EXCEPTION);
+
+	/**
 	 * {@code RuntimeError}, raised for errors that fit no other category.
 	 */
 	public static final PyExceptionType RUNTIME_ERROR = subclass("builtins.RuntimeError", EXCEPTION);
+
+	/**
+	 * {@code NotImplementedError}, raised by abstract methods.
+	 */
+	public static final PyExceptionType NOT_IMPLEMENTED_ERROR = subclass("builtins.NotImplementedError",
+			RUNTIME_ERROR);
+
+	/**
+	 * {@code AttributeError}, raised when an attribute an object does not have
+	 * is used.
+	 */
+	public static final PyExceptionType ATTRIBUTE_ERROR = subclass("builtins.AttributeError", EXCEPTION);
 
 	/**
 	 * {@code ArithmeticError}.
@@ -97,7 +114,7 @@ public final class PyExceptionType implements Type {
 	 * built once, and stored in a constant.
 	 *
 	 * @param name       the qualified name of the class, such as
-	 *                       {@code rclpy.exceptions.InvalidTopicNameException}
+	 *                       {@code mylib.errors.InvalidNameError}
 	 * @param superclass the type of the direct superclass
 	 *
 	 * @return the type

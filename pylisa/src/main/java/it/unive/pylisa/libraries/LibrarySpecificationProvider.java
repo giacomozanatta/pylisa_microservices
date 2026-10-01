@@ -4,7 +4,6 @@ import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ScanResult;
 import it.unive.lisa.AnalysisSetupException;
 import it.unive.lisa.program.Program;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.lisa.program.cfg.statement.Ret;
@@ -13,6 +12,7 @@ import it.unive.pylisa.antlr.LibraryDefinitionParser;
 import it.unive.pylisa.libraries.loader.Library;
 import it.unive.pylisa.libraries.loader.Runtime;
 import it.unive.pylisa.program.ModuleUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -120,8 +120,8 @@ public class LibrarySpecificationProvider {
 
 	private static CFG makeInit(
 			Program program) {
-		init = new CFG(new CodeMemberDescriptor(SyntheticLocation.INSTANCE, program, false, "LiSA$init"));
-		init.addNode(new Ret(init, SyntheticLocation.INSTANCE), true);
+		init = new CFG(new CodeMemberDescriptor(PySyntheticLocation.INSTANCE, program, false, "LiSA$init"));
+		init.addNode(new Ret(init, PySyntheticLocation.INSTANCE), true);
 		program.addCodeMember(init);
 		return init;
 	}

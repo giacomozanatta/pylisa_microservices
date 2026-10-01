@@ -299,6 +299,7 @@ public final class ControlFlowVisitor {
 			block.addNode(guard);
 			return Pair.of(guard, guard);
 		}
+		support.limitation(netx, "assignment expression in a condition");
 		Statement prev = null;
 		for (Statement pre : prelude) {
 			block.addNode(pre);
@@ -313,6 +314,7 @@ public final class ControlFlowVisitor {
 
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitFor_stmt(
 			For_stmtContext pctx) {
+		support.limitation(pctx, "for loop");
 		NodeList<CFG, Statement, Edge> block = new NodeList<>(ParserContext.SEQUENTIAL_SINGLETON);
 		NoOp exit = new NoOp(ctx.currentCFG(), support.getLocation(pctx));
 		block.addNode(exit);
@@ -435,6 +437,7 @@ public final class ControlFlowVisitor {
 
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitWith_stmt(
 			With_stmtContext pctx) {
+		support.limitation(pctx, "with statement");
 		int withSize = pctx.with_item().size();
 		NodeList<CFG, Statement, Edge> block = new NodeList<>(ParserContext.SEQUENTIAL_SINGLETON);
 		Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> curr = visitWith_item(pctx.with_item(0));

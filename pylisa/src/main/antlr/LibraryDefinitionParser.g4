@@ -61,7 +61,7 @@ param
    ;
 
 field
-   : INSTANCE? FIELD name = IDENTIFIER paramType = type (ARROW syntheticType = type)?
+   : INSTANCE? FIELD name = IDENTIFIER paramType = type (ARROW syntheticType = type)? (DEFAULT val = value)?
    ;
 
 method

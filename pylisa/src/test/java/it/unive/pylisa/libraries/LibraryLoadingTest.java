@@ -3,12 +3,12 @@ package it.unive.pylisa.libraries;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import it.unive.lisa.program.Program;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeMemberDescriptor;
 import it.unive.lisa.program.cfg.statement.Ret;
 import it.unive.pylisa.PythonFeatures;
 import it.unive.pylisa.PythonTypeSystem;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.io.File;
 
 public class LibraryLoadingTest {
@@ -26,8 +26,8 @@ public class LibraryLoadingTest {
 
 	private CFG makeInit(
 			Program program) {
-		CFG init = new CFG(new CodeMemberDescriptor(SyntheticLocation.INSTANCE, program, false, "LiSA$init"));
-		init.addNode(new Ret(init, SyntheticLocation.INSTANCE), true);
+		CFG init = new CFG(new CodeMemberDescriptor(PySyntheticLocation.INSTANCE, program, false, "LiSA$init"));
+		init.addNode(new Ret(init, PySyntheticLocation.INSTANCE), true);
 		program.addCodeMember(init);
 		return init;
 	}

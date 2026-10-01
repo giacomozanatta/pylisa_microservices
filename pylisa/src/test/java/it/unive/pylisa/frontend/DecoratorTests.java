@@ -1,7 +1,6 @@
 package it.unive.pylisa.frontend;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,13 +37,11 @@ final class DecoratorTests {
 	}
 
 	@Test
-	void decorator_on_class_is_currently_unsupported() {
-		// Captures current-behavior: the frontend raises
-		// UnsupportedStatementException on class-level decorators. When a
-		// future chunk adds class-decorator support, flip this test to
-		// assertThat(...).isNotNull() — it is the safety-net signal that
-		// behavior actually changed.
-		assertThatThrownBy(() -> FrontendTestSupport.parseSnippet("@annotated\nclass C:\n    pass\n"))
-				.hasMessageContaining("");
+	void decorator_on_class_is_skipped_and_marked() throws Exception {
+		// class decorators are not applied: the class is translated as if
+		// undecorated, and the construct is marked as a known limitation
+		// (KnownLimitationMarksTest checks the mark)
+		var program = FrontendTestSupport.parseSnippet("@annotated\nclass C:\n    pass\n").program();
+		assertThat(program.getUnits()).anyMatch(unit -> unit.getName().matches(".*\\bC(@.*)?"));
 	}
 }

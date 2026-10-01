@@ -1,4 +1,4 @@
-package it.unive.pylisa.testing;
+package it.unive.pylisa.analysis;
 
 import it.unive.lisa.analysis.SimpleAbstractDomain;
 import it.unive.lisa.analysis.string.BoundedStringSet;
@@ -9,14 +9,12 @@ import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
 import it.unive.lisa.interprocedural.context.ContextBasedAnalysis;
 import it.unive.lisa.outputs.HtmlResults;
 import it.unive.lisa.outputs.JSONResults;
-import it.unive.pylisa.analysis.PyFieldSensitivePointBasedHeap;
-import it.unive.pylisa.analysis.ValueDomainProduct;
 import it.unive.pylisa.analysis.constants.ConstantPropagation;
 import it.unive.pylisa.analysis.types.PythonInferredTypes;
 import java.util.function.Supplier;
 
 /**
- * The analysis configurations state tests run with. They share
+ * The analysis configurations pylisa runs with. They share
  * pylisa's field-sensitive heap and inferred Python types, and differ in the
  * value domain.
  * <p>
@@ -60,31 +58,56 @@ public enum AnalysisConfig {
 	}
 
 	/**
-	 * Builds the LiSA configuration for this analysis. The analysis results
-	 * are also dumped as JSON under the given working directory, so that a
-	 * failing test can be investigated on the full states, and as HTML too when
-	 * the system property {@value #HTML_PROPERTY} is {@code true}.
+	 * Builds the LiSA configuration for this analysis, dumping the results
+	 * under the given working directory only when asked to.
 	 *
-	 * @param workdir the working directory, relative to
-	 *                    {@code build/analysis-results/}
+	 * @param workdir     the working directory, where LiSA writes its outputs
+	 * @param dumpResults whether the results are dumped as JSON (and as HTML
+	 *                        when the system property {@value #HTML_PROPERTY}
+	 *                        is {@code true})
 	 *
 	 * @return the configuration
 	 */
-	public LiSAConfiguration configuration(
-			String workdir) {
+	LiSAConfiguration configuration(
+			String workdir,
+			boolean dumpResults) {
 		LiSAConfiguration conf = new LiSAConfiguration();
-		conf.workdir = "build/analysis-results/" + workdir;
-		conf.outputs.add(new JSONResults<>());
-		if (Boolean.getBoolean(HTML_PROPERTY))
-			conf.outputs.add(new HtmlResults<>(true));
-		conf.interproceduralAnalysis = new ContextBasedAnalysis<>();
+		conf.workdir = workdir;
+		if (dumpResults) {
+			conf.outputs.add(new JSONResults<>());
+			if (Boolean.getBoolean(HTML_PROPERTY))
+				conf.outputs.add(new HtmlResults<>(true));
+		}
+		configure(conf);
+		return conf;
+	}
+
+	/**
+	 * How many of the last call sites make up the context of a call. With
+	 * two, a function called at one site inside a helper (such as a class
+	 * constructor the helper calls) is analysed apart for each caller of the
+	 * helper, instead of joining the states of all of them.
+	 */
+	public static final int CALL_STRING_DEPTH = 2;
+
+	/**
+	 * Sets the analysis of this configuration on a LiSA configuration: the
+	 * interprocedural analysis, the call graph, the policy for unknown calls
+	 * and the abstract domain. The working directory and the outputs are left
+	 * to the caller, so that a subclass of {@link LiSAConfiguration}, such as
+	 * the one LiSA's test executor takes, runs the same analysis.
+	 *
+	 * @param conf the configuration to set up
+	 */
+	public void configure(
+			LiSAConfiguration conf) {
+		conf.interproceduralAnalysis = new ContextBasedAnalysis<>(CALL_STRING_DEPTH);
 		conf.callGraph = new RTACallGraph();
 		conf.openCallPolicy = ReturnTopPolicy.INSTANCE;
 		conf.analysis = new SimpleAbstractDomain<>(
 				new PyFieldSensitivePointBasedHeap(),
 				valueDomain.get(),
 				new PythonInferredTypes());
-		return conf;
 	}
 
 	/**

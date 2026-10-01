@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import it.unive.pylisa.analysis.AnalysisConfig;
 import it.unive.pylisa.checks.AssertionVerdict;
-import it.unive.pylisa.testing.AnalysisConfig;
 import it.unive.pylisa.testing.StateTestHelper;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;

@@ -51,6 +51,8 @@ public class PyAccessInstanceGlobal extends AccessInstanceGlobal {
 					// we treat this as a call to keys()
 					Keys keys = new Keys(getCFG(), getLocation(), getSubExpression());
 					keys.setOriginatingStatement(this);
+					// errors raised by keys() belong to this attribute access
+					keys.setParentStatement(this);
 					return keys.fwdUnarySemantics(interprocedural, state, expr, expressions);
 				}
 		}

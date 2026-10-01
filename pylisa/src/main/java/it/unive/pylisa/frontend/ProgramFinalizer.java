@@ -18,12 +18,14 @@ import it.unive.lisa.type.TypeSystem;
 import it.unive.lisa.type.Untyped;
 import it.unive.lisa.type.VoidType;
 import it.unive.pylisa.cfg.PyCFG;
+import it.unive.pylisa.cfg.statement.CarriedMarksStart;
 import it.unive.pylisa.cfg.statement.ImportModule;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyLambdaType;
 import it.unive.pylisa.cfg.type.PyModuleType;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
 import it.unive.pylisa.program.ModuleUnit;
+import it.unive.pylisa.program.PySyntheticLocation;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -115,9 +117,13 @@ public final class ProgramFinalizer {
 		PyCFG runCFG = new PyCFG(runDesc);
 		pyProgramUnit.addCodeMember(runCFG);
 
+		// every carried mark starts unset, before any code runs
+		CarriedMarksStart unset = new CarriedMarksStart(runCFG, LISA_LOC);
+		runCFG.addNode(unset, true);
 		ImportModule importBuiltins = new ImportModule(runCFG, LISA_LOC,
 				"builtins", (ModuleUnit) PyModuleType.lookup("builtins").getUnit());
-		runCFG.addNode(importBuiltins, true);
+		runCFG.addNode(importBuiltins);
+		runCFG.addEdge(new SequentialEdge(unset, importBuiltins));
 
 		// Read the entry-file's compilation-unit name off the parser
 		// context's currentModule rather than hardcoding "__main__".
@@ -133,7 +139,7 @@ public final class ProgramFinalizer {
 		runCFG.addNode(importMain);
 		runCFG.addEdge(new SequentialEdge(importBuiltins, importMain));
 
-		Ret ret = new Ret(runCFG, it.unive.lisa.program.SyntheticLocation.INSTANCE);
+		Ret ret = new Ret(runCFG, PySyntheticLocation.INSTANCE);
 		runCFG.addNode(ret);
 		runCFG.addEdge(new SequentialEdge(importMain, ret));
 

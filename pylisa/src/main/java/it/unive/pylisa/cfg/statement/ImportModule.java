@@ -8,12 +8,13 @@ import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.edge.Edge;
 import it.unive.lisa.program.cfg.statement.Expression;
-import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.cfg.statement.VariableRef;
 import it.unive.lisa.util.datastructures.graph.GraphVisitor;
 import it.unive.pylisa.analysis.ObjectRegister;
 import it.unive.pylisa.cfg.expression.PyAssign;
+import java.util.Comparator;
+import java.util.Objects;
 
 public class ImportModule extends Expression {
 	private String moduleName;
@@ -85,33 +86,28 @@ public class ImportModule extends Expression {
 		// expressions);
 	}
 
+	/**
+	 * Orders imports by the name of the module they import: pylisa builds them with one synthetic
+	 * location, and the imports of one module initializer must stay distinct statements.
+	 */
 	@Override
 	protected int compareSameClass(
 			Statement o) {
-		return 0;
+		return Objects.compare(moduleName, ((ImportModule) o).moduleName,
+				Comparator.nullsFirst(Comparator.naturalOrder()));
 	}
 
 	@Override
 	public boolean equals(
 			Object obj) {
-		if (this == obj)
-			return true;
-		if (!super.equals(obj))
-			return false;
-		if (!(obj instanceof NaryExpression))
-			return false;
-		ImportModule other = (ImportModule) obj;
-		if (moduleName == null) {
-			if (other.moduleName != null)
-				return false;
-		} else if (!moduleName.equals(other.moduleName))
-			return false;
-		if (pythonModuleUnit == null) {
-			if (other.pythonModuleUnit != null)
-				return false;
-		} else if (!pythonModuleUnit.equals(other.pythonModuleUnit))
-			return false;
-		return true;
+		return this == obj
+				|| super.equals(obj) && getClass() == obj.getClass()
+						&& Objects.equals(moduleName, ((ImportModule) obj).moduleName);
+	}
+
+	@Override
+	public int hashCode() {
+		return 31 * super.hashCode() + Objects.hashCode(moduleName);
 	}
 
 	@Override

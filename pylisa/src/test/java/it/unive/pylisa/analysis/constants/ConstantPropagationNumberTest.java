@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.lattices.Satisfiability;
-import it.unive.lisa.program.SyntheticLocation;
 import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.program.type.Float32Type;
 import it.unive.lisa.program.type.Float64Type;
@@ -26,6 +25,7 @@ import it.unive.lisa.symbolic.value.operator.unary.NumericNegation;
 import it.unive.lisa.symbolic.value.operator.unary.UnaryOperator;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
+import it.unive.pylisa.program.PySyntheticLocation;
 import it.unive.pylisa.symbolic.operators.Power;
 import it.unive.pylisa.symbolic.operators.compare.PyComparisonGe;
 import it.unive.pylisa.symbolic.operators.compare.PyComparisonLt;
@@ -173,7 +173,8 @@ class ConstantPropagationNumberTest {
 			throws SemanticException {
 		Constant placeholder = constant(Untyped.INSTANCE, 0);
 		return DOMAIN.evalBinaryExpression(
-				new BinaryExpression(Untyped.INSTANCE, placeholder, placeholder, operator, SyntheticLocation.INSTANCE),
+				new BinaryExpression(Untyped.INSTANCE, placeholder, placeholder, operator,
+						PySyntheticLocation.INSTANCE),
 				left, right, null, null);
 	}
 
@@ -183,7 +184,7 @@ class ConstantPropagationNumberTest {
 			throws SemanticException {
 		Constant placeholder = constant(Untyped.INSTANCE, 0);
 		return DOMAIN.evalUnaryExpression(
-				new UnaryExpression(Untyped.INSTANCE, placeholder, operator, SyntheticLocation.INSTANCE),
+				new UnaryExpression(Untyped.INSTANCE, placeholder, operator, PySyntheticLocation.INSTANCE),
 				argument, null, null);
 	}
 
@@ -194,7 +195,8 @@ class ConstantPropagationNumberTest {
 			throws SemanticException {
 		Constant placeholder = constant(Untyped.INSTANCE, 0);
 		return DOMAIN.satisfiesBinaryExpression(
-				new BinaryExpression(Untyped.INSTANCE, placeholder, placeholder, operator, SyntheticLocation.INSTANCE),
+				new BinaryExpression(Untyped.INSTANCE, placeholder, placeholder, operator,
+						PySyntheticLocation.INSTANCE),
 				left, right, null, null);
 	}
 
@@ -221,6 +223,6 @@ class ConstantPropagationNumberTest {
 	private static Constant constant(
 			Type type,
 			Object value) {
-		return new Constant(type, value, SyntheticLocation.INSTANCE);
+		return new Constant(type, value, PySyntheticLocation.INSTANCE);
 	}
 }

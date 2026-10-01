@@ -15,6 +15,7 @@ import it.unive.lisa.program.cfg.statement.call.Call.CallType;
 import it.unive.lisa.program.cfg.statement.call.UnresolvedCall;
 import it.unive.lisa.program.cfg.statement.evaluation.LeftToRightEvaluation;
 import it.unive.lisa.util.datastructures.graph.code.NodeList;
+import it.unive.pylisa.antlr.Python3Parser.TrailerContext;
 import it.unive.pylisa.antlr.Python3Parser.AnnassignContext;
 import it.unive.pylisa.antlr.Python3Parser.Assert_stmtContext;
 import it.unive.pylisa.antlr.Python3Parser.AugassignContext;
@@ -100,10 +101,14 @@ public final class SimpleStatementVisitor {
 			return visitAssert_stmt(pctx.assert_stmt());
 		else if (pctx.flow_stmt() != null)
 			return ctx.stmt().visitFlow_stmt(pctx.flow_stmt());
-		else if (pctx.nonlocal_stmt() != null)
-			return new NoOp(ctx.currentCFG(), support.getLocation(pctx)); // TODO
-		else if (pctx.global_stmt() != null)
-			return new NoOp(ctx.currentCFG(), support.getLocation(pctx)); // TODO
+		else if (pctx.nonlocal_stmt() != null) {
+			// assignments to the names then create local variables
+			support.limitation(pctx, "global or nonlocal declaration ignored");
+			return new NoOp(ctx.currentCFG(), support.getLocation(pctx));
+		} else if (pctx.global_stmt() != null) {
+			support.limitation(pctx, "global or nonlocal declaration ignored");
+			return new NoOp(ctx.currentCFG(), support.getLocation(pctx));
+		}
 		return support.rejectUnsupported(pctx);
 	}
 
@@ -130,6 +135,32 @@ public final class SimpleStatementVisitor {
 			else
 				return visitTestlist_star_expr(pctx.testlist_star_expr(0));
 
+		// the value is the last part; with several targets (a = b = v) only the
+		// first is assigned
+		int last = pctx.testlist_star_expr().size() - 1;
+		if (last > 1)
+			support.limitation(pctx, "chained assignment (only the first target is assigned)");
+
+		TrailerContext subscript = ParserSupport.writtenSubscript(pctx.testlist_star_expr(0));
+		if (subscript != null) {
+			// receiver[key] = value: the value is translated first, so that the
+			// subscript visitor can build the call of __setitem__ with it and be
+			// the first parent of the receiver, the key and the value; the call
+			// evaluates them in the order receiver, key, value
+			Expression value = visitTestlist_star_expr(pctx.testlist_star_expr(last));
+			if (ParserSupport.containsCall(value))
+				support.limitation(pctx, "call nested in the arguments of a call");
+			boolean previous = ctx.shouldPrependUnitAccess();
+			ctx.shouldPrependUnitAccess(false);
+			ctx.subscriptWrite(new ParserContext.SubscriptWrite(subscript, value));
+			try {
+				return visitTestlist_star_expr(pctx.testlist_star_expr(0));
+			} finally {
+				ctx.subscriptWrite(null);
+				ctx.shouldPrependUnitAccess(previous);
+			}
+		}
+
 		boolean oldPrepend = ctx.shouldPrependUnitAccess();
 		ctx.shouldPrependUnitAccess(false);
 		Expression rawTarget = visitTestlist_star_expr(pctx.testlist_star_expr(0));
@@ -146,7 +177,9 @@ public final class SimpleStatementVisitor {
 				&& DunderMethods.GETITEM.equals(aa.getTarget())) {
 			Expression receiver = fa.getSubExpressions()[1];
 			Expression key = fa.getSubExpressions()[2];
-			Expression rhs = visitTestlist_star_expr(pctx.testlist_star_expr(1));
+			Expression rhs = visitTestlist_star_expr(pctx.testlist_star_expr(last));
+			if (ParserSupport.containsCall(rhs))
+				support.limitation(pctx, "call nested in the arguments of a call");
 			Expression setitemAttr = new AttributeAccess(
 					ctx.currentCFG(), support.getLocation(pctx), receiver, DunderMethods.SETITEM);
 			return new FunctionApply(ctx.currentCFG(), support.getLocation(pctx), setitemAttr,
@@ -155,7 +188,7 @@ public final class SimpleStatementVisitor {
 
 		return new PyAssign(ctx.currentCFG(), support.getLocation(pctx),
 				target,
-				visitTestlist_star_expr(pctx.testlist_star_expr(1)));
+				visitTestlist_star_expr(pctx.testlist_star_expr(last)));
 	}
 
 	public Expression visitTestlist_star_expr(

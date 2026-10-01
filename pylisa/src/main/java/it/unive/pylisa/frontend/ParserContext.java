@@ -6,7 +6,9 @@ import it.unive.lisa.program.Unit;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.controlFlow.ControlFlowStructure;
 import it.unive.lisa.program.cfg.edge.SequentialEdge;
+import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.Statement;
+import it.unive.pylisa.antlr.Python3Parser.TrailerContext;
 import it.unive.pylisa.cfg.PyCFG;
 import it.unive.pylisa.frontend.definition.DefinitionVisitor;
 import it.unive.pylisa.frontend.expression.ExpressionVisitor;
@@ -71,6 +73,7 @@ public final class ParserContext {
 	private Collection<ControlFlowStructure> cfs;
 	private Map<String, String> imports = new HashMap<>();
 	private boolean shouldPrependUnitAccess = true;
+	private SubscriptWrite subscriptWrite;
 	private final Deque<Set<String>> localScopes = new ArrayDeque<>();
 	private final Deque<List<Statement>> walrusPreludes = new ArrayDeque<>();
 
@@ -211,6 +214,38 @@ public final class ParserContext {
 	public void shouldPrependUnitAccess(
 			boolean v) {
 		this.shouldPrependUnitAccess = v;
+	}
+
+	/**
+	 * An assignment to a subscript being translated, {@code receiver[key] =
+	 * value}: the subscript it writes to and the value, translated before the
+	 * subscript so that the call of {@code __setitem__} can be built with it.
+	 *
+	 * @param subscript the subscript trailer of the target
+	 * @param value     the value assigned
+	 */
+	public record SubscriptWrite(TrailerContext subscript, Expression value) {
+	}
+
+	/**
+	 * Yields the assignment to a subscript being translated, whose subscript is
+	 * translated as a call of {@code __setitem__} rather than as a read.
+	 *
+	 * @return the assignment, or {@code null} if none is being translated
+	 */
+	public SubscriptWrite subscriptWrite() {
+		return subscriptWrite;
+	}
+
+	/**
+	 * Sets the assignment to a subscript being translated.
+	 *
+	 * @param write the assignment, or {@code null} when none is being
+	 *                  translated
+	 */
+	public void subscriptWrite(
+			SubscriptWrite write) {
+		this.subscriptWrite = write;
 	}
 
 	// === scope-stack operations (public API for visitors) ===
