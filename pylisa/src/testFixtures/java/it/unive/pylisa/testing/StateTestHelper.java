@@ -46,9 +46,18 @@ public final class StateTestHelper {
 
 	/**
 	 * The kind of files under which the analysis results of every program are
-	 * dumped, so that a failing test can be investigated on the full states.
+	 * dumped, when {@link #DUMP} is set, so that a failing test can be
+	 * investigated on the full states.
 	 */
 	private static final String RESULTS = "analysis-results";
+
+	/**
+	 * The system property that makes every analysis dump its results, for
+	 * instance {@code ./gradlew test -Dlisa.dump=true}. It is off by default:
+	 * the dumps of a whole test run take tens of gigabytes, and writing them
+	 * makes parallel test processes wait on the disk.
+	 */
+	public static final String DUMP = "lisa.dump";
 
 	private final Path program;
 
@@ -166,7 +175,9 @@ public final class StateTestHelper {
 		// the results of this run, not also those of code since removed
 		String workdir = TestDirectories.of(RESULTS).resolve(stem(path)).resolve(config.name()).toString();
 		FileManager.forceDeleteFolder(workdir);
-		PythonAnalysis.run(program, config, workdir, true, checks, List.of(providers), settings);
+		// asking for LiSA's HTML view asks for the dump it is written with
+		boolean dump = Boolean.getBoolean(DUMP) || Boolean.getBoolean(AnalysisConfig.HTML_PROPERTY);
+		PythonAnalysis.run(program, config, workdir, dump, checks, List.of(providers), settings);
 		return new StateTestHelper(path, config, collector, checker, Files.readAllLines(path, StandardCharsets.UTF_8));
 	}
 
