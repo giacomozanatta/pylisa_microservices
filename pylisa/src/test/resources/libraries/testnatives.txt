@@ -38,6 +38,10 @@ library testnatives:
         instance method __init__: it.unive.pylisa.testnatives.NoneNative
             type it.unive.lisa.type.Untyped::INSTANCE
             param self libtype Plain*
+        instance method echo: it.unive.pylisa.testnatives.EchoNative
+            type it.unive.lisa.type.Untyped::INSTANCE
+            param self libtype Plain*
+            param value type it.unive.lisa.type.Untyped::INSTANCE
     class Raw extends builtins.object:
         instance method __new__: it.unive.pylisa.testnatives.RaisingNative
             type it.unive.lisa.type.Untyped::INSTANCE

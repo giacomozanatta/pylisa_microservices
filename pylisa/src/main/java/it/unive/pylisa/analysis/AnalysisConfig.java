@@ -5,7 +5,6 @@ import it.unive.lisa.analysis.string.BoundedStringSet;
 import it.unive.lisa.analysis.value.ValueDomain;
 import it.unive.lisa.conf.LiSAConfiguration;
 import it.unive.lisa.interprocedural.ReturnTopPolicy;
-import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
 import it.unive.lisa.interprocedural.context.ContextBasedAnalysis;
 import it.unive.lisa.outputs.HtmlResults;
 import it.unive.lisa.outputs.JSONResults;
@@ -102,7 +101,7 @@ public enum AnalysisConfig {
 	public void configure(
 			LiSAConfiguration conf) {
 		conf.interproceduralAnalysis = new ContextBasedAnalysis<>(CALL_STRING_DEPTH);
-		conf.callGraph = new RTACallGraph();
+		conf.callGraph = new PyCallGraph();
 		conf.openCallPolicy = ReturnTopPolicy.INSTANCE;
 		conf.analysis = new SimpleAbstractDomain<>(
 				new PyFieldSensitivePointBasedHeap(),

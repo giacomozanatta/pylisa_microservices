@@ -2,14 +2,14 @@ package it.unive.pylisa.experimental;
 
 import it.unive.lisa.LiSA;
 import it.unive.lisa.analysis.SimpleAbstractDomain;
-import it.unive.pylisa.analysis.PyFieldSensitivePointBasedHeap;
 import it.unive.lisa.analysis.types.InferredTypes;
 import it.unive.lisa.conf.LiSAConfiguration;
 import it.unive.lisa.interprocedural.ReturnTopPolicy;
-import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
 import it.unive.lisa.interprocedural.context.ContextBasedAnalysis;
 import it.unive.lisa.outputs.JSONResults;
 import it.unive.lisa.program.Program;
+import it.unive.pylisa.analysis.PyCallGraph;
+import it.unive.pylisa.analysis.PyFieldSensitivePointBasedHeap;
 import it.unive.pylisa.analysis.constants.ConstantPropagation;
 import it.unive.pylisa.frontend.PyFrontend;
 import java.io.IOException;
@@ -33,7 +33,7 @@ public class PyParameterTest {
 		conf.workdir = "outputs/" + workdir;
 		conf.outputs.add(new JSONResults<>());
 		conf.interproceduralAnalysis = new ContextBasedAnalysis<>();
-		conf.callGraph = new RTACallGraph();
+		conf.callGraph = new PyCallGraph();
 		conf.openCallPolicy = ReturnTopPolicy.INSTANCE;
 
 		PyFieldSensitivePointBasedHeap heap = new PyFieldSensitivePointBasedHeap();
