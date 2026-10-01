@@ -133,7 +133,7 @@ public final class CallTargets {
 	public static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> List<Target> of(
 			Analysis<A, D> analysis,
 			AnalyzedCFG<A> result,
-			FunctionApply call)
+			PyCall call)
 			throws SemanticException {
 		Expression[] sub = call.getSubExpressions();
 		AnalysisState<A> applied = result.getAnalysisStateAfter(sub[sub.length - 1]);
@@ -159,7 +159,7 @@ public final class CallTargets {
 	 * Binds the arguments of a call to the formal parameters of one of its
 	 * targets, as stored in the results of the analysis of its CFG and as the
 	 * dispatch passes them (see {@link ArgumentBinding}): a callable receives
-	 * {@link FunctionApply#arguments}; the {@code __init__} of an
+	 * {@link PyCall#arguments}; the {@code __init__} of an
 	 * instantiation receives the object being created and then the
 	 * constructor arguments, and its first parameter, bound to the object, is
 	 * left out.
@@ -182,7 +182,7 @@ public final class CallTargets {
 	public static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> Optional<List<Binding>> bind(
 			Analysis<A, D> analysis,
 			AnalyzedCFG<A> result,
-			FunctionApply call,
+			PyCall call,
 			CodeMember callee,
 			boolean initialization)
 			throws SemanticException {

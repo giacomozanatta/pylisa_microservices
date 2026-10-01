@@ -196,7 +196,7 @@ public class PyNameRef extends Expression {
 		// Import-hint fallback: recovers bindings from `from X import Y` in
 		// submodules where PyAssign's type side-effect didn't propagate. By
 		// re-evaluating a fresh ClassLiteral / producing a typed GlobalVariable
-		// for the qualified name, the downstream FunctionApply sees a
+		// for the qualified name, the downstream PyCall sees a
 		// PyClassType / PyFunctionType and dispatches correctly.
 		if (qualifiedImportHint != null) {
 			// Base-name lookup: a qualified import hint like "X.Y" may map to
@@ -219,7 +219,7 @@ public class PyNameRef extends Expression {
 			}
 			if (PyFunctionType.isRegistered(qualifiedImportHint)) {
 				// A GlobalVariable whose static type is the registered
-				// PyFunctionType lets FunctionApply dispatch to the pluggable.
+				// PyFunctionType lets PyCall dispatch to the pluggable.
 				return analysis.smallStepSemantics(state,
 						new GlobalVariable(PyFunctionType.lookup(qualifiedImportHint),
 								"$" + qualifiedImportHint, getLocation()),

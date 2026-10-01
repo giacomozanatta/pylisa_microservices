@@ -18,10 +18,10 @@ import it.unive.lisa.program.cfg.statement.call.Call;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.type.Type;
 import it.unive.pylisa.cfg.statement.FromImport;
-import it.unive.pylisa.cfg.statement.FunctionApply;
 import it.unive.pylisa.cfg.statement.ImportClass;
 import it.unive.pylisa.cfg.statement.ImportFunction;
 import it.unive.pylisa.cfg.statement.ImportModule;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyFunctionType;
 import it.unive.pylisa.cfg.type.PyLambdaType;
@@ -98,7 +98,7 @@ public class CallableNotCalledCheck<A extends AbstractLattice<A>, D extends Abst
 		// checks are also given the sub-expressions of statements
 		return graph.containsNode(node) && node instanceof Expression && !(node instanceof Assignment)
 				&& !(node instanceof Call) && !isImport(node)
-				&& !(node instanceof FunctionApply) && node.getLocation() instanceof SourceCodeLocation
+				&& !(node instanceof PyCall) && node.getLocation() instanceof SourceCodeLocation
 				&& graph.getOutgoingEdges(node).stream()
 						.noneMatch(edge -> edge instanceof TrueEdge || edge instanceof FalseEdge);
 	}

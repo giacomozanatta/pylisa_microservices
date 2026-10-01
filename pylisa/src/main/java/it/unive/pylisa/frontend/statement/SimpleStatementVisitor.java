@@ -33,8 +33,8 @@ import it.unive.pylisa.cfg.expression.ListCreation;
 import it.unive.pylisa.cfg.expression.PyAccessInstanceGlobal;
 import it.unive.pylisa.cfg.expression.PyAssign;
 import it.unive.pylisa.cfg.expression.TupleCreation;
-import it.unive.pylisa.cfg.statement.FunctionApply;
 import it.unive.pylisa.cfg.statement.PyAssert;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.cfg.statement.PyNameRef;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
 import it.unive.pylisa.program.PyClassUnit;
@@ -171,18 +171,18 @@ public final class SimpleStatementVisitor {
 
 		// Subscript write: d["key"] = value → d.__setitem__("key", value)
 		// (instead of PyAssign(d.__getitem__("key"), value) which crashes LiSA)
-		if (rawTarget instanceof FunctionApply fa
-				&& fa.getSubExpressions().length == 3
-				&& fa.getSubExpressions()[0] instanceof AttributeAccess aa
+		if (rawTarget instanceof PyCall read
+				&& read.getSubExpressions().length == 3
+				&& read.getSubExpressions()[0] instanceof AttributeAccess aa
 				&& DunderMethods.GETITEM.equals(aa.getTarget())) {
-			Expression receiver = fa.getSubExpressions()[1];
-			Expression key = fa.getSubExpressions()[2];
+			Expression receiver = read.getSubExpressions()[1];
+			Expression key = read.getSubExpressions()[2];
 			Expression rhs = visitTestlist_star_expr(pctx.testlist_star_expr(last));
 			if (ParserSupport.containsCall(rhs))
 				support.limitation(pctx, "call nested in the arguments of a call");
 			Expression setitemAttr = new AttributeAccess(
 					ctx.currentCFG(), support.getLocation(pctx), receiver, DunderMethods.SETITEM);
-			return new FunctionApply(ctx.currentCFG(), support.getLocation(pctx), setitemAttr,
+			return new PyCall(ctx.currentCFG(), support.getLocation(pctx), setitemAttr,
 					new Expression[] { receiver, key, rhs }, true);
 		}
 

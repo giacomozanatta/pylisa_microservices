@@ -23,7 +23,7 @@ import it.unive.pylisa.antlr.Python3Parser.VarkwContext;
 import it.unive.pylisa.antlr.Python3Parser.VfpdefContext;
 import it.unive.pylisa.antlr.Python3ParserBaseVisitor;
 import it.unive.pylisa.cfg.PyParameter;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
 import java.util.Objects;
@@ -64,7 +64,7 @@ public final class DefinitionVisitor extends Python3ParserBaseVisitor<Object> {
 	}
 
 	@Override
-	public FunctionApply visitDecorator(
+	public PyCall visitDecorator(
 			DecoratorContext c) {
 		return decorators.visitDecorator(c);
 	}

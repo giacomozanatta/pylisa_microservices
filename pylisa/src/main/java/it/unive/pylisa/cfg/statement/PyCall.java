@@ -16,7 +16,14 @@ import it.unive.pylisa.cfg.type.PyFunctionType;
 import it.unive.pylisa.libraries.natives.LibraryNative;
 import java.util.Arrays;
 
-public class FunctionApply extends NaryExpression {
+/**
+ * A Python call, {@code callee(arguments)}, named after Python's
+ * {@code ast.Call}. The callee is the first sub-expression; for a method call
+ * written {@code receiver.attribute(arguments)}, the receiver is the second.
+ * The call is dispatched on the runtime types of its callee (see
+ * {@link CallTargets}).
+ */
+public class PyCall extends NaryExpression {
 	Expression identifier;
 	private final boolean hasReceiver;
 	/**
@@ -36,7 +43,7 @@ public class FunctionApply extends NaryExpression {
 	 */
 	private final boolean decoratorApplication;
 
-	public FunctionApply(
+	public PyCall(
 			CFG cfg,
 			CodeLocation location,
 			Expression identifier,
@@ -44,7 +51,7 @@ public class FunctionApply extends NaryExpression {
 		this(cfg, location, identifier, params, false, false);
 	}
 
-	public FunctionApply(
+	public PyCall(
 			CFG cfg,
 			CodeLocation location,
 			Expression identifier,
@@ -53,14 +60,14 @@ public class FunctionApply extends NaryExpression {
 		this(cfg, location, identifier, params, hasReceiver, false);
 	}
 
-	public FunctionApply(
+	public PyCall(
 			CFG cfg,
 			CodeLocation location,
 			Expression identifier,
 			Expression[] params,
 			boolean hasReceiver,
 			boolean decoratorApplication) {
-		super(cfg, location, "$FunctionApply", prependReceiver(params, identifier));
+		super(cfg, location, "__call__", prependReceiver(params, identifier));
 		this.identifier = identifier;
 		this.hasReceiver = hasReceiver;
 		this.decoratorApplication = decoratorApplication;
@@ -93,7 +100,7 @@ public class FunctionApply extends NaryExpression {
 	@Override
 	protected int compareSameClassAndParams(
 			Statement o) {
-		FunctionApply other = (FunctionApply) o;
+		PyCall other = (PyCall) o;
 		int cmp = Boolean.compare(hasReceiver, other.hasReceiver);
 		if (cmp != 0)
 			return cmp;
@@ -105,14 +112,10 @@ public class FunctionApply extends NaryExpression {
 			if (cmp != 0)
 				return cmp;
 		}
-		// Two FunctionApply nodes at the same location with identical
-		// sub-expressions
-		// are the same logical call site. Using identity hash as a tiebreaker
-		// would
-		// cause dynamically-created FA objects (e.g. from ClassInstantiation)
-		// to appear
-		// as distinct call sites on every fixpoint iteration, preventing
-		// convergence.
+		// two calls at the same location with identical sub-expressions are
+		// the same call site: an identity tiebreaker would make the calls
+		// built while analysing (e.g. by an instantiation) distinct sites on
+		// every fixpoint iteration, preventing convergence
 		return 0;
 	}
 
@@ -185,11 +188,11 @@ public class FunctionApply extends NaryExpression {
 			Expression[] classParams = new Expression[constructorArguments.length + 1];
 			classParams[0] = getSubExpressions()[0];
 			System.arraycopy(constructorArguments, 0, classParams, 1, constructorArguments.length);
-			ClassInstantiation ci = new ClassInstantiation(this.getCFG(), getLocation(), instantiation.type(),
+			PyInstantiation construction = new PyInstantiation(this.getCFG(), getLocation(), instantiation.type(),
 					classParams);
 			// errors raised while constructing belong to this call
-			ci.setParentStatement(this);
-			return ci.forwardSemantics(state, interprocedural, expressions);
+			construction.setParentStatement(this);
+			return construction.forwardSemantics(state, interprocedural, expressions);
 		}
 		Call call = CallTargets.call(target, this, arguments);
 		if (call == null)

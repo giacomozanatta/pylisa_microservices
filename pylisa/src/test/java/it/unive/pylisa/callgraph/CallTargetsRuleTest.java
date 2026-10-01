@@ -27,7 +27,7 @@ import it.unive.pylisa.cfg.statement.CallTargets;
 import it.unive.pylisa.cfg.statement.CallTargets.Python;
 import it.unive.pylisa.cfg.statement.CallTargets.Target;
 import it.unive.pylisa.cfg.statement.CallTargets.Unresolved;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.cfg.type.PyFunctionType;
 import it.unive.pylisa.cfg.type.PyModuleType;
 import it.unive.pylisa.program.type.NoInfoType;
@@ -208,7 +208,7 @@ class CallTargetsRuleTest {
 	 */
 	private record Seen(
 			Analysis<Lat, Dom> analysis,
-			FunctionApply call,
+			PyCall call,
 			ExpressionSet callees,
 			ExpressionSet receivers,
 			AnalysisState<Lat> applied) {
@@ -229,7 +229,7 @@ class CallTargetsRuleTest {
 				SemanticTool<Lat, Dom> tool,
 				CFG graph,
 				Statement node) {
-			for (FunctionApply call : calls(node))
+			for (PyCall call : calls(node))
 				for (AnalyzedCFG<Lat> result : tool.getResultOf(graph)) {
 					Expression[] sub = call.getSubExpressions();
 					ExpressionSet receivers = sub.length < 2 ? new ExpressionSet()
@@ -269,10 +269,10 @@ class CallTargetsRuleTest {
 			return CallTargets.receiverTypes(seen.analysis, seen.applied, seen.receivers, seen.call);
 		}
 
-		private static List<FunctionApply> calls(
+		private static List<PyCall> calls(
 				Statement statement) {
-			List<FunctionApply> found = new ArrayList<>();
-			if (statement instanceof FunctionApply call)
+			List<PyCall> found = new ArrayList<>();
+			if (statement instanceof PyCall call)
 				found.add(call);
 			if (statement instanceof NaryExpression expression)
 				for (Expression sub : expression.getSubExpressions())

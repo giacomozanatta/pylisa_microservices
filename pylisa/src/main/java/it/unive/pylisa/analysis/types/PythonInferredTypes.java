@@ -42,7 +42,7 @@ public class PythonInferredTypes
 			PythonTypeSet inner = evalIdentifier(mp.getReferencedLocation(), environment, pp, oracle);
 			if (inner.isTop())
 				// Unknown heap-cell type → return TOP so callers (e.g.
-				// FunctionApply)
+				// PyCall)
 				// fall through to the conservative PushAny path instead of
 				// materialising every registered type and causing a type
 				// explosion.

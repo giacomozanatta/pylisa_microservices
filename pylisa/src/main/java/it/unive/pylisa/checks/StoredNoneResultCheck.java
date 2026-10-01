@@ -16,7 +16,7 @@ import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.type.Type;
 import it.unive.pylisa.cfg.statement.CallTargets;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.frontend.ParserSupport;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +63,7 @@ public class StoredNoneResultCheck<A extends AbstractLattice<A>, D extends Abstr
 			SemanticTool<A, D> tool,
 			CFG graph,
 			Statement node) {
-		if (!(node instanceof Assignment assignment) || !(assignment.getRight() instanceof FunctionApply call))
+		if (!(node instanceof Assignment assignment) || !(assignment.getRight() instanceof PyCall call))
 			return true;
 		boolean reached = false;
 		for (AnalyzedCFG<A> result : tool.getResultOf(graph)) {
@@ -84,7 +84,7 @@ public class StoredNoneResultCheck<A extends AbstractLattice<A>, D extends Abstr
 			SemanticTool<A, D> tool,
 			AnalyzedCFG<A> result,
 			AnalysisState<A> after,
-			FunctionApply call) {
+			PyCall call) {
 		try {
 			for (CallTargets.Target target : CallTargets.of(tool.getAnalysis(), result, call))
 				if (target instanceof CallTargets.Python python

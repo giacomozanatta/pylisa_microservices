@@ -15,7 +15,7 @@ import it.unive.pylisa.cfg.expression.AttributeAccess;
 import it.unive.pylisa.cfg.expression.Empty;
 import it.unive.pylisa.cfg.expression.RangeValue;
 import it.unive.pylisa.cfg.expression.StarExpression;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.cfg.statement.PyNameRef;
 import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
@@ -132,12 +132,12 @@ public final class AccessVisitor {
 			// the key and the value (LiSA keeps the first parent of an expression)
 			Expression setitemAttr = new AttributeAccess(ctx.currentCFG(), support.getLocation(t, start(t)), base,
 					DunderMethods.SETITEM);
-			return new FunctionApply(ctx.currentCFG(), support.getLocation(t, start(t)), setitemAttr,
+			return new PyCall(ctx.currentCFG(), support.getLocation(t, start(t)), setitemAttr,
 					new Expression[] { base, key, write.value() }, true);
 		}
 		Expression getitemAttr = new AttributeAccess(ctx.currentCFG(), support.getLocation(t, start(t)), base,
 				DunderMethods.GETITEM);
-		return new FunctionApply(ctx.currentCFG(), support.getLocation(t, start(t)), getitemAttr,
+		return new PyCall(ctx.currentCFG(), support.getLocation(t, start(t)), getitemAttr,
 				new Expression[] { base, key }, true);
 	}
 
@@ -174,7 +174,7 @@ public final class AccessVisitor {
 			support.limitation(t, "method call on the result of a call");
 		if (args.stream().skip(receiverPrepended ? 1 : 0).anyMatch(ParserSupport::containsCall))
 			support.limitation(t, "call nested in the arguments of a call");
-		Expression call = new FunctionApply(ctx.currentCFG(), support.getLocation(t, start(t)), access,
+		Expression call = new PyCall(ctx.currentCFG(), support.getLocation(t, start(t)), access,
 				args.toArray(Expression[]::new), receiverPrepended);
 		return TrailerOutcome.of(call);
 	}
@@ -210,9 +210,9 @@ public final class AccessVisitor {
 		Expression selfRef = new VariableRef(ctx.currentCFG(), support.getLocation(t), firstParamName);
 		Expression superFunc = support.makeScopedAttributeRef(ctx.objectUnit(), "super",
 				support.getLocation(t));
-		Expression call = new FunctionApply(ctx.currentCFG(), support.getLocation(t), superFunc,
+		Expression call = new PyCall(ctx.currentCFG(), support.getLocation(t), superFunc,
 				new Expression[] { classRef, selfRef }, false);
-		LOG.debug("super() FunctionApply created: id={}", System.identityHashCode(call));
+		LOG.debug("super() PyCall created: id={}", System.identityHashCode(call));
 		// original self as chain-slot receiver; super proxy only carries type
 		// resolution forward
 		return new TrailerOutcome(call, selfRef);

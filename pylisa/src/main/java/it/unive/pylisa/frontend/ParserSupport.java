@@ -31,7 +31,7 @@ import it.unive.pylisa.cfg.PyParameter;
 import it.unive.pylisa.cfg.expression.PyStringLiteral;
 import it.unive.pylisa.cfg.expression.literal.PyNoneLiteral;
 import it.unive.pylisa.cfg.expression.literal.PyUnknownLiteral;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.cfg.statement.PyNameRef;
 import it.unive.pylisa.cfg.statement.PythonScopedAttributeAccessRef;
 import it.unive.pylisa.program.FunctionUnit;
@@ -277,7 +277,7 @@ public final class ParserSupport {
 	 */
 	public static boolean containsCall(
 			Expression expression) {
-		if (expression instanceof FunctionApply call && !isSuperCall(call))
+		if (expression instanceof PyCall call && !isSuperCall(call))
 			return true;
 		if (expression instanceof NaryExpression nary)
 			for (Expression sub : nary.getSubExpressions())
@@ -287,7 +287,7 @@ public final class ParserSupport {
 	}
 
 	private static boolean isSuperCall(
-			FunctionApply call) {
+			PyCall call) {
 		return call.getSubExpressions().length > 0
 				&& call.getSubExpressions()[0] instanceof PyNameRef name
 				&& "super".equals(name.getName());

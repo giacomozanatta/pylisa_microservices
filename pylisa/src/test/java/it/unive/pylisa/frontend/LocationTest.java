@@ -9,7 +9,7 @@ import it.unive.lisa.program.cfg.CodeMember;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.Statement;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.program.PySourceCodeLocation;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -52,7 +52,7 @@ class LocationTest {
 			int line)
 			throws Exception {
 		Program translated = new PyFrontend(PROGRAMS + program, false).toLiSAProgram(true);
-		List<FunctionApply> calls = new ArrayList<>();
+		List<PyCall> calls = new ArrayList<>();
 		for (CodeMember member : translated.getCodeMembersRecursively())
 			if (member instanceof CFG cfg)
 				for (Statement node : cfg.getNodes())
@@ -69,8 +69,8 @@ class LocationTest {
 
 	private static void collect(
 			Statement statement,
-			List<FunctionApply> calls) {
-		if (statement instanceof FunctionApply call)
+			List<PyCall> calls) {
+		if (statement instanceof PyCall call)
 			calls.add(call);
 		if (statement instanceof NaryExpression nary)
 			for (Expression sub : nary.getSubExpressions())

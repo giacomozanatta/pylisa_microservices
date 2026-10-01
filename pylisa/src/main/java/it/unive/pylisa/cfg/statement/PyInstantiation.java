@@ -18,16 +18,22 @@ import it.unive.pylisa.debug.ConstructorResolutionTrace;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ClassInstantiation extends NaryExpression {
+/**
+ * The instantiation of a class reached by a {@link PyCall}: {@code __new__}
+ * creates the object and {@code __init__} initialises it, each looked up as
+ * Python does, {@code __init__} in the state {@code __new__} leaves. The
+ * result is the created object.
+ */
+public class PyInstantiation extends NaryExpression {
 
 	private final PyClassType classType;
 
-	public ClassInstantiation(
+	public PyInstantiation(
 			CFG cfg,
 			CodeLocation location,
 			PyClassType classType,
 			Expression[] params) {
-		super(cfg, location, "$ClassInstantiation", classType, params);
+		super(cfg, location, "$PyInstantiation", classType, params);
 		this.classType = classType;
 	}
 
@@ -102,7 +108,7 @@ public class ClassInstantiation extends NaryExpression {
 		arguments[0] = new InstrumentedReceiverRef(this.getCFG(), getLocation(), false);
 		for (int i = 1; i < getSubExpressions().length; i++)
 			arguments[i] = getSubExpressions()[i];
-		FunctionApply call = new FunctionApply(this.getCFG(), getLocation(), init, arguments);
+		PyCall call = new PyCall(this.getCFG(), getLocation(), init, arguments);
 		// errors raised by __init__ belong to this instantiation
 		call.setParentStatement(this);
 		return call.forwardSemantics(created, interprocedural, expressions);
@@ -140,7 +146,7 @@ public class ClassInstantiation extends NaryExpression {
 	@Override
 	protected int compareSameClassAndParams(
 			Statement o) {
-		ClassInstantiation other = (ClassInstantiation) o;
+		PyInstantiation other = (PyInstantiation) o;
 		int cmp = classType.toString().compareTo(other.classType.toString());
 		if (cmp != 0)
 			return cmp;
@@ -152,11 +158,9 @@ public class ClassInstantiation extends NaryExpression {
 			if (cmp != 0)
 				return cmp;
 		}
-		// Same reasoning as FunctionApply: identity hash as tiebreaker prevents
-		// convergence when ClassInstantiation objects are dynamically created
-		// per
-		// fixpoint iteration at the same code location with identical
-		// parameters.
+		// as for calls: an identity tiebreaker would prevent convergence, since
+		// instantiations are built anew while analysing, at the same location
+		// and with identical operands
 		return 0;
 	}
 }

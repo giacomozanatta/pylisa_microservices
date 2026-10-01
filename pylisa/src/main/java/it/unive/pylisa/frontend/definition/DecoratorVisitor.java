@@ -11,7 +11,7 @@ import it.unive.pylisa.antlr.Python3Parser.DecoratedContext;
 import it.unive.pylisa.antlr.Python3Parser.DecoratorContext;
 import it.unive.pylisa.antlr.Python3Parser.DecoratorsContext;
 import it.unive.pylisa.cfg.expression.PyAssign;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
 import java.util.ArrayList;
@@ -110,7 +110,7 @@ public final class DecoratorVisitor {
 		return d.dotted_name().getText();
 	}
 
-	public FunctionApply visitDecorator(
+	public PyCall visitDecorator(
 			DecoratorContext pctx) {
 		if (pctx.dotted_name() == null) {
 			throw new UnsupportedOperationException("Expecting a Dotted_nameContext in a DecoratorContext.");
@@ -127,7 +127,7 @@ public final class DecoratorVisitor {
 			if (pctx.arglist() != null)
 				for (ArgumentContext arg : pctx.arglist().argument())
 					params.add(ctx.expr().visitArgument(arg));
-			return new FunctionApply(ctx.currentCFG(), support.getLocation(pctx), result,
+			return new PyCall(ctx.currentCFG(), support.getLocation(pctx), result,
 					params.toArray(Expression[]::new));
 		}
 		List<Expression> params = new ArrayList<>();
@@ -136,7 +136,7 @@ public final class DecoratorVisitor {
 		if (pctx.arglist() != null)
 			for (ArgumentContext arg : pctx.arglist().argument())
 				params.add(ctx.expr().visitArgument(arg));
-		return new FunctionApply(ctx.currentCFG(), support.getLocation(pctx), result,
+		return new PyCall(ctx.currentCFG(), support.getLocation(pctx), result,
 				params.toArray(Expression[]::new));
 	}
 
@@ -149,7 +149,7 @@ public final class DecoratorVisitor {
 
 		for (int i = decorators.size() - 1; i >= 0; i--) {
 			DecoratorContext decorCtx = decorators.get(i);
-			FunctionApply decorator = visitDecorator(decorCtx);
+			PyCall decorator = visitDecorator(decorCtx);
 
 			if (result == null) {
 				result = decorator;
@@ -165,11 +165,11 @@ public final class DecoratorVisitor {
 				// Tag decorator-position calls so that, when the call target's
 				// runtime type is unresolved (e.g. an external decorator with
 				// no library spec like @slowapi.Limiter.limit(...)),
-				// FunctionApply's semantics fall back to passing the inner
+				// PyCall's semantics fall back to passing the inner
 				// argument through unchanged. This preserves the decorated
 				// function's PyFunctionType so an outer route decorator can
 				// still resolve the handler.
-				result = new FunctionApply(
+				result = new PyCall(
 						ctx.currentCFG(),
 						support.getLocation(pctx),
 						callTarget,

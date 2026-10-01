@@ -10,7 +10,7 @@ import it.unive.lisa.program.cfg.CodeMember;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.pylisa.cfg.expression.AttributeAccess;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.frontend.expression.DunderMethods;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -30,7 +30,7 @@ class SubscriptAssignmentTest {
 
 	@Test
 	void theCallOfSetitemIsTheParentOfWhatItEvaluates() throws Exception {
-		FunctionApply write = setitem(PROGRAM);
+		PyCall write = setitem(PROGRAM);
 		Expression[] operands = write.getSubExpressions();
 		// the attribute, then the receiver, the key and the value
 		assertEquals(4, operands.length, write.toString());
@@ -44,13 +44,13 @@ class SubscriptAssignmentTest {
 
 	@Test
 	void theValueOfAWriteWithSeveralIndicesIsKept() throws Exception {
-		FunctionApply write = setitem(SEVERAL_INDICES);
+		PyCall write = setitem(SEVERAL_INDICES);
 		Expression[] operands = write.getSubExpressions();
 		assertEquals(4, operands.length, write.toString());
 		assertSame(write, operands[3].getParentStatement(), "the value");
 	}
 
-	private static FunctionApply setitem(
+	private static PyCall setitem(
 			String path)
 			throws Exception {
 		Program program = new PyFrontend(path, false).toLiSAProgram(true);
@@ -59,11 +59,11 @@ class SubscriptAssignmentTest {
 			if (member instanceof CFG cfg && member.getDescriptor().getFullName().startsWith("__main__.fill::"))
 				fill = cfg;
 		assertTrue(fill != null, "no function fill in " + program.getCodeMembersRecursively());
-		List<FunctionApply> writes = fill.getNodes().stream()
-				.filter(node -> node instanceof FunctionApply apply
+		List<PyCall> writes = fill.getNodes().stream()
+				.filter(node -> node instanceof PyCall apply
 						&& apply.getSubExpressions()[0] instanceof AttributeAccess access
 						&& access.getTarget().equals(DunderMethods.SETITEM))
-				.map(FunctionApply.class::cast)
+				.map(PyCall.class::cast)
 				.toList();
 		assertEquals(1, writes.size(), fill.getNodes().toString());
 		return writes.get(0);

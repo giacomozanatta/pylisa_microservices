@@ -13,7 +13,7 @@ import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.symbolic.SymbolicExpression;
-import it.unive.pylisa.cfg.statement.FunctionApply;
+import it.unive.pylisa.cfg.statement.PyCall;
 
 public class PyIn extends BinaryExpression {
 
@@ -46,7 +46,7 @@ public class PyIn extends BinaryExpression {
 		AttributeAccess containsAttr = new AttributeAccess(
 				getCFG(), getLocation(), collection, "__contains__");
 
-		FunctionApply call = new FunctionApply(
+		PyCall call = new PyCall(
 				getCFG(), getLocation(), containsAttr,
 				new Expression[] { collection, element },
 				true);
