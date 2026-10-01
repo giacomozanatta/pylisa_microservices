@@ -11,13 +11,10 @@ import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.lisa.program.cfg.statement.call.Call;
 import it.unive.lisa.symbolic.SymbolicExpression;
 import it.unive.lisa.symbolic.value.PushAny;
-import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyFunctionType;
-import it.unive.pylisa.cfg.type.PyModuleType;
 import it.unive.pylisa.libraries.natives.LibraryNative;
 import java.util.Arrays;
-import java.util.Set;
 
 public class FunctionApply extends NaryExpression {
 	Expression identifier;
@@ -142,8 +139,9 @@ public class FunctionApply extends NaryExpression {
 			AnalysisState<A> state,
 			ExpressionSet receivers)
 			throws SemanticException {
-		int first = receiverIsModule(analysis, state, receivers) ? 2 : 1;
-		return Arrays.copyOfRange(getSubExpressions(), first, getSubExpressions().length);
+		boolean passed = !hasReceiver || getSubExpressions().length < 2
+				|| CallTargets.receiverPassed(CallTargets.receiverTypes(analysis, state, receivers, this));
+		return Arrays.copyOfRange(getSubExpressions(), passed ? 1 : 2, getSubExpressions().length);
 	}
 
 	/**
@@ -158,23 +156,6 @@ public class FunctionApply extends NaryExpression {
 		return Arrays.copyOfRange(getSubExpressions(), first, getSubExpressions().length);
 	}
 
-	private <A extends AbstractLattice<A>, D extends AbstractDomain<A>> boolean receiverIsModule(
-			Analysis<A, D> analysis,
-			AnalysisState<A> state,
-			ExpressionSet receivers)
-			throws SemanticException {
-		if (!hasReceiver || getSubExpressions().length < 2)
-			return false;
-		boolean any = false;
-		for (SymbolicExpression receiver : receivers) {
-			Set<Type> types = analysis.getRuntimeTypesOf(state, receiver, this);
-			if (types.isEmpty() || !types.stream().allMatch(PyModuleType.class::isInstance))
-				return false;
-			any = true;
-		}
-		return any;
-	}
-
 	@Override
 	public <A extends AbstractLattice<A>, D extends AbstractDomain<A>> AnalysisState<A> forwardSemanticsAux(
 			InterproceduralAnalysis<A, D> interprocedural,
@@ -185,7 +166,8 @@ public class FunctionApply extends NaryExpression {
 		AnalysisState<A> result = state.bottomExecution();
 		Expression[] arguments = params.length < 2 ? new Expression[0]
 				: arguments(interprocedural.getAnalysis(), state, params[1]);
-		for (CallTargets.Target target : CallTargets.of(interprocedural.getAnalysis(), state, params[0], this))
+		for (CallTargets.Target target : CallTargets
+				.targets(CallTargets.calleeTypes(interprocedural.getAnalysis(), state, params[0], this)))
 			result = result.lub(apply(target, interprocedural, state, params, expressions, arguments));
 		return result;
 	}

@@ -17,6 +17,7 @@ import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.Statement;
 import it.unive.pylisa.analysis.AnalysisConfig;
 import it.unive.pylisa.analysis.Val;
+import it.unive.pylisa.cfg.statement.CallTargets.ConstructorParts;
 import it.unive.pylisa.cfg.statement.CallTargets.Instantiation;
 import it.unive.pylisa.cfg.statement.CallTargets.Native;
 import it.unive.pylisa.cfg.statement.CallTargets.Python;
@@ -65,16 +66,13 @@ class CallTargetsTest {
 		StateTestHelper helper = StateTestHelper.analyse(PROGRAMS + "inherited_native_init.py", config,
 				List.of(probe));
 		List<Target> targets = probe.at(helper.lineOf("@sub"));
-		Instantiation instantiation = targets.stream()
-				.filter(Instantiation.class::isInstance)
-				.map(Instantiation.class::cast)
-				.findFirst()
-				.orElseThrow(() -> new AssertionError("no instantiation among " + targets));
-		assertTrue(instantiation.initialization().stream()
+		assertTrue(targets.stream().anyMatch(Instantiation.class::isInstance), targets.toString());
+		ConstructorParts parts = probe.partsAt(helper.lineOf("@sub"));
+		assertTrue(parts.initialization().stream()
 				.anyMatch(target -> target instanceof Native natives
 						&& natives.implementation() == NoneNative.class
 						&& natives.library().equals("testnatives")),
-				instantiation.toString());
+				parts.toString());
 	}
 
 	@ParameterizedTest
@@ -85,8 +83,7 @@ class CallTargetsTest {
 		Probe probe = new Probe();
 		StateTestHelper helper = StateTestHelper.analyse(PROGRAMS + "over_limit.py", config, List.of(probe));
 		List<Target> targets = probe.at(helper.lineOf("@over"));
-		assertTrue(targets.stream().allMatch(target -> target instanceof Unresolved unresolved
-				&& unresolved.reason().contains("more than")), targets.toString());
+		assertTrue(targets.stream().allMatch(Unresolved.class::isInstance), targets.toString());
 	}
 
 	@ParameterizedTest
@@ -96,10 +93,8 @@ class CallTargetsTest {
 			throws Exception {
 		Probe probe = new Probe();
 		StateTestHelper helper = StateTestHelper.analyse(PROGRAMS + "multiple_bases.py", config, List.of(probe));
-		List<Target> targets = probe.at(helper.lineOf("@multiple"));
-		assertTrue(targets.stream().anyMatch(target -> target instanceof Instantiation instantiation
-				&& instantiation.creation().stream().anyMatch(Unresolved.class::isInstance)),
-				targets.toString());
+		ConstructorParts parts = probe.partsAt(helper.lineOf("@multiple"));
+		assertTrue(parts.creation().stream().anyMatch(Unresolved.class::isInstance), parts.toString());
 		assertEquals(Val.top(), helper.after("@multiple").value("m"), "the created object is unknown");
 	}
 
@@ -111,10 +106,8 @@ class CallTargetsTest {
 		Probe probe = new Probe();
 		StateTestHelper helper = StateTestHelper.analyse(PROGRAMS + "new_not_callable.py", config,
 				List.of(probe));
-		List<Target> targets = probe.at(helper.lineOf("@notcallable"));
-		assertTrue(targets.stream().anyMatch(target -> target instanceof Instantiation instantiation
-				&& instantiation.creation().stream().anyMatch(Unresolved.class::isInstance)),
-				targets.toString());
+		ConstructorParts parts = probe.partsAt(helper.lineOf("@notcallable"));
+		assertTrue(parts.creation().stream().anyMatch(Unresolved.class::isInstance), parts.toString());
 		assertEquals(Val.top(), helper.after("@notcallable").value("n"), "the created object is unknown");
 	}
 
@@ -149,6 +142,8 @@ class CallTargetsTest {
 
 		private final Map<Integer, List<Target>> byLine = new HashMap<>();
 
+		private final Map<Integer, ConstructorParts> partsByLine = new HashMap<>();
+
 		@Override
 		public boolean visit(
 				SemanticTool<Lat, Dom> tool,
@@ -160,6 +155,12 @@ class CallTargetsTest {
 						List<Target> targets = CallTargets.of(tool.getAnalysis(), result, call);
 						int line = ((SourceCodeLocation) call.getLocation()).getLine();
 						byLine.computeIfAbsent(line, l -> new ArrayList<>()).addAll(targets);
+						Expression[] sub = call.getSubExpressions();
+						for (Target target : targets)
+							if (target instanceof Instantiation instantiation)
+								partsByLine.put(line, CallTargets.constructorParts(tool.getAnalysis(),
+										result.getAnalysisStateAfter(sub[sub.length - 1]), instantiation.type(),
+										call));
 					} catch (SemanticException e) {
 						throw new IllegalStateException("Cannot resolve the targets of " + call, e);
 					}
@@ -172,6 +173,14 @@ class CallTargetsTest {
 			if (targets == null)
 				throw new AssertionError("No reached call on line " + line + "; calls on lines " + byLine.keySet());
 			return targets;
+		}
+
+		ConstructorParts partsAt(
+				int line) {
+			ConstructorParts parts = partsByLine.get(line);
+			if (parts == null)
+				throw new AssertionError("No instantiation on line " + line + "; on lines " + partsByLine.keySet());
+			return parts;
 		}
 
 		private static List<FunctionApply> calls(

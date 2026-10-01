@@ -26,6 +26,7 @@ import it.unive.lisa.type.Type;
 import it.unive.lisa.type.Untyped;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyFunctionType;
+import it.unive.pylisa.cfg.type.PyModuleType;
 import it.unive.pylisa.libraries.loader.LibraryNativeCFG;
 import it.unive.pylisa.program.language.parameterassignment.ArgumentBinding;
 import it.unive.pylisa.program.type.NoInfoType;
@@ -33,18 +34,19 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * The targets a call resolves to in a given state, as the analysis itself
- * dispatches the call. Every runtime type of the callee either yields a
- * target or is reported as an {@link Unresolved} part, so that no execution
- * of the call is silently dropped: the analysis continues unresolved parts
- * with an unknown result, and readers of the results see them.
+ * The rule that dispatches a Python call, shared by the analysis and by the
+ * readers of its results. The targets of a call depend on the runtime types
+ * of its callee alone (see {@link #calleeTypes} and {@link #targets}): every
+ * type either yields a target or an {@link Unresolved} part, so that no
+ * execution of the call is silently dropped. The analysis continues
+ * unresolved parts with an unknown result, and readers of the results see
+ * them.
  */
 public final class CallTargets {
 
@@ -80,17 +82,24 @@ public final class CallTargets {
 	}
 
 	/**
-	 * The construction of an instance of a class, with an unresolved part for
-	 * each part of {@code __new__} or {@code __init__} that cannot be
-	 * dispatched.
+	 * The construction of an instance of a class. Its parts, {@code __new__}
+	 * and {@code __init__}, depend on the state the class is instantiated in,
+	 * not only on the type of the callee: see {@link #constructorParts}.
 	 *
-	 * @param type           the class
+	 * @param type the class
+	 */
+	public record Instantiation(PyClassType type) implements Target {
+	}
+
+	/**
+	 * The parts of the construction of an instance of a class, as resolved in
+	 * one state, with an unresolved part for each part of {@code __new__} or
+	 * {@code __init__} that cannot be dispatched.
+	 *
 	 * @param creation       the targets of {@code __new__}
 	 * @param initialization the targets of {@code __init__}
 	 */
-	public record Instantiation(PyClassType type, List<Target> creation, List<Target> initialization)
-			implements
-			Target {
+	public record ConstructorParts(List<Target> creation, List<Target> initialization) {
 	}
 
 	/**
@@ -131,7 +140,7 @@ public final class CallTargets {
 		if (applied.getExecution().isBottom() || applied.getExecutionState().isBottom())
 			return List.of();
 		ExpressionSet callees = result.getAnalysisStateAfter(sub[0]).getExecutionExpressions();
-		return of(analysis, applied, callees, call);
+		return targets(calleeTypes(analysis, applied, callees, call));
 	}
 
 	/**
@@ -201,7 +210,16 @@ public final class CallTargets {
 	}
 
 	/**
-	 * Yields the targets of a call in the state it is applied to.
+	 * Yields the runtime types of the callee of a call, in the state the call
+	 * is applied to. {@link NoInfoType} stands for every part of the callee
+	 * that cannot be dispatched by type: an unknown callee, a callee whose
+	 * type the analysis does not know (a library global referred to by its
+	 * name also gets its registered types), and the types of a callee
+	 * expression beyond {@value #TYPE_LIMIT}. The limit applies to each callee
+	 * expression on its own, counting all its types: the types of several
+	 * callee expressions are dispatched together, whatever their total. The
+	 * types keep the order of the callee expressions, so that the targets are
+	 * always dispatched in the same order.
 	 *
 	 * @param <A>      the kind of abstract state
 	 * @param <D>      the kind of abstract domain
@@ -211,60 +229,73 @@ public final class CallTargets {
 	 * @param callees  the values of the callee expression
 	 * @param point    the program point of the call
 	 *
-	 * @return the targets, with an unresolved part for everything that cannot
-	 *             be dispatched
+	 * @return the types; empty if the callee has no value
 	 *
 	 * @throws SemanticException if the types cannot be computed
 	 */
-	public static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> List<Target> of(
+	public static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> Set<Type> calleeTypes(
 			Analysis<A, D> analysis,
 			AnalysisState<A> state,
 			ExpressionSet callees,
 			ProgramPoint point)
 			throws SemanticException {
-		List<Target> targets = new ArrayList<>();
+		Set<Type> types = new LinkedHashSet<>();
 		for (SymbolicExpression callee : callees)
-			targets.addAll(ofCallee(analysis, state, callee, point));
-		if (targets.isEmpty())
-			targets.add(new Unresolved("the callee has no value"));
-		return targets;
+			types.addAll(typesOfCallee(analysis, state, callee, point));
+		return types;
 	}
 
-	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> List<Target> ofCallee(
+	private static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> Set<Type> typesOfCallee(
 			Analysis<A, D> analysis,
 			AnalysisState<A> state,
 			SymbolicExpression callee,
 			ProgramPoint point)
 			throws SemanticException {
-		List<Target> targets = new ArrayList<>();
 		if (callee instanceof PushAny)
-			return List.of(new Unresolved("the callee is unknown"));
-		Set<Type> types = analysis.getRuntimeTypesOf(state, callee, point);
-		if (types.isEmpty() || types.stream().allMatch(NoInfoType.INSTANCE::equals)) {
+			return Set.of(NoInfoType.INSTANCE);
+		Set<Type> types = new LinkedHashSet<>(analysis.getRuntimeTypesOf(state, callee, point));
+		boolean untyped = types.isEmpty() || types.stream().allMatch(NoInfoType.INSTANCE::equals);
+		if (untyped) {
 			// the state may not carry the type of a library global referred
 			// to by its qualified name: the registered type is used, but the
 			// analysis did not derive it
-			types = new HashSet<>();
+			types = new LinkedHashSet<>();
 			if (callee instanceof GlobalVariable global)
 				types.addAll(registeredTypes(global.getName()));
-			targets.add(new Unresolved("the type of the callee is not known to the analysis"));
 		}
 		if (types.size() > TYPE_LIMIT) {
-			Set<Type> callable = new HashSet<>();
+			Set<Type> callable = new LinkedHashSet<>();
 			for (Type type : types)
 				if (type instanceof PyFunctionType || type instanceof PyClassType)
 					callable.add(type);
 			if (callable.isEmpty() || callable.size() > TYPE_LIMIT)
-				return List.of(new Unresolved("the callee has more than " + TYPE_LIMIT + " runtime types"));
-			targets.add(new Unresolved("runtime types of the callee beyond the limit are not callable"));
+				return Set.of(NoInfoType.INSTANCE);
 			types = callable;
+			types.add(NoInfoType.INSTANCE);
 		}
-		for (Type type : types)
+		if (untyped)
+			types.add(NoInfoType.INSTANCE);
+		return types;
+	}
+
+	/**
+	 * Yields the targets of a call from the runtime types of its callee, as
+	 * {@link #calleeTypes} gives them: a function or a library model for each
+	 * function type, an instantiation for each class, and an unresolved part
+	 * for {@link NoInfoType} and for each type that is not callable.
+	 *
+	 * @param calleeTypes the types of the callee
+	 *
+	 * @return the targets; an unresolved part alone if the callee has no value
+	 */
+	public static List<Target> targets(
+			Set<Type> calleeTypes) {
+		if (calleeTypes.isEmpty())
+			return List.of(new Unresolved("the callee has no value"));
+		List<Target> targets = new ArrayList<>();
+		for (Type type : calleeTypes)
 			if (type instanceof PyClassType classType)
-				targets.add(new Instantiation(classType,
-						methodTargets(attribute(analysis, state, classType, "__new__", point), "__new__", classType),
-						methodTargets(attribute(analysis, state, classType, "__init__", point), "__init__",
-								classType)));
+				targets.add(new Instantiation(classType));
 			else if (type instanceof PyFunctionType function)
 				targets.add(function(function));
 			else if (NoInfoType.INSTANCE.equals(type))
@@ -274,6 +305,84 @@ public final class CallTargets {
 		return targets;
 	}
 
+	/**
+	 * Yields the runtime types of the receiver of a method call, in the state
+	 * the call is applied to. A value of the receiver whose type the analysis
+	 * does not know contributes {@link NoInfoType}, so that it is never taken
+	 * for a module (see {@link #receiverPassed}).
+	 *
+	 * @param <A>       the kind of abstract state
+	 * @param <D>       the kind of abstract domain
+	 * @param analysis  the analysis
+	 * @param state     the state after the evaluation of every sub-expression
+	 *                      of the call
+	 * @param receivers the values of the receiver expression
+	 * @param point     the program point of the call
+	 *
+	 * @return the types; empty if the receiver has no value
+	 *
+	 * @throws SemanticException if the types cannot be computed
+	 */
+	public static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> Set<Type> receiverTypes(
+			Analysis<A, D> analysis,
+			AnalysisState<A> state,
+			ExpressionSet receivers,
+			ProgramPoint point)
+			throws SemanticException {
+		Set<Type> types = new LinkedHashSet<>();
+		for (SymbolicExpression receiver : receivers) {
+			Set<Type> of = analysis.getRuntimeTypesOf(state, receiver, point);
+			if (of.isEmpty())
+				types.add(NoInfoType.INSTANCE);
+			else
+				types.addAll(of);
+		}
+		return types;
+	}
+
+	/**
+	 * Yields whether the receiver of a method call is passed to the callables
+	 * it calls. It is, unless every value of the receiver is a module, as in
+	 * {@code os.getcwd()}: a function reached through a module is not a
+	 * method, and is not passed the module.
+	 *
+	 * @param receiverTypes the types of the receiver, as
+	 *                          {@link #receiverTypes} gives them
+	 *
+	 * @return whether the receiver is passed
+	 */
+	public static boolean receiverPassed(
+			Set<Type> receiverTypes) {
+		return receiverTypes.isEmpty() || !receiverTypes.stream().allMatch(PyModuleType.class::isInstance);
+	}
+
+	/**
+	 * Yields the parts of the construction of an instance of a class in a
+	 * state: the targets of {@code __new__} and of {@code __init__}, as
+	 * {@link #attribute} resolves them in that state.
+	 *
+	 * @param <A>       the kind of abstract state
+	 * @param <D>       the kind of abstract domain
+	 * @param analysis  the analysis
+	 * @param state     the state the class is instantiated in
+	 * @param classType the class
+	 * @param point     the program point of the instantiation
+	 *
+	 * @return the parts
+	 *
+	 * @throws SemanticException if the types cannot be computed
+	 */
+	public static <A extends AbstractLattice<A>, D extends AbstractDomain<A>> ConstructorParts constructorParts(
+			Analysis<A, D> analysis,
+			AnalysisState<A> state,
+			PyClassType classType,
+			ProgramPoint point)
+			throws SemanticException {
+		return new ConstructorParts(
+				methodTargets(attribute(analysis, state, classType, "__new__", point), "__new__", classType),
+				methodTargets(attribute(analysis, state, classType, "__init__", point), "__init__", classType));
+	}
+
 	private static Set<Type> registeredTypes(
 			String name) {
 		String qualified = name.startsWith("$") ? name.substring(1).replace("::", ".") : name;
@@ -281,7 +390,7 @@ public final class CallTargets {
 			return Set.of(PyFunctionType.lookup(qualified));
 		// conditional class redefinitions share a qualified name: all of them
 		// are candidates
-		return new HashSet<>(PyClassType.lookupAllByBaseName(qualified));
+		return new LinkedHashSet<>(PyClassType.lookupAllByBaseName(qualified));
 	}
 
 	private static String describe(
