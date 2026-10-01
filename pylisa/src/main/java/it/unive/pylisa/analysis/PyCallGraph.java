@@ -12,6 +12,7 @@ import it.unive.lisa.program.Application;
 import it.unive.lisa.program.cfg.CodeMember;
 import it.unive.lisa.program.cfg.statement.call.CFGCall;
 import it.unive.lisa.program.cfg.statement.call.Call;
+import it.unive.lisa.program.cfg.statement.call.OpenCall;
 import it.unive.lisa.program.cfg.statement.call.UnresolvedCall;
 import it.unive.lisa.type.Type;
 import it.unive.pylisa.cfg.statement.PyCall;
@@ -34,10 +35,11 @@ import java.util.Set;
  * Each resolution is computed once per call and array of types, and records
  * what LiSA's call graphs record: the call as a call site of each code member
  * it may reach (Python functions and library models alike), an edge from the
- * caller to each of them, and a {@link CallResolved} event. The calls that
- * apply a resolution's targets are internal to it: they are never call sites,
- * so a call is listed once whatever the number of contexts and fixpoint
- * iterations it is analysed in.
+ * caller to each of them, and a {@link CallResolved} event, with a second one
+ * for an {@link OpenCall} when a part of the call cannot be dispatched. The
+ * calls that apply a resolution's targets are internal to it: they are never
+ * call sites, so a call is listed once whatever the number of contexts and
+ * fixpoint iterations it is analysed in.
  * </p>
  * <p>
  * Resolutions are shared by equal calls, and the equality of calls ignores
@@ -104,9 +106,23 @@ public class PyCallGraph extends RTACallGraph {
 			addEdge(new CallGraphEdge(caller, node(target)));
 			sites.computeIfAbsent(target, member -> new LinkedHashSet<>()).add(call);
 		}
-		if (events != null)
+		if (events != null) {
 			events.post(new CallResolved(call, types, aliasing, resolved));
+			// the parts that cannot be dispatched are reported as LiSA reports
+			// the calls it cannot resolve; the analysis still continues them
+			// as the resolved call does, not with LiSA's open call policy
+			if (!resolved.unresolved().isEmpty())
+				events.post(new CallResolved(call, types, aliasing, open(site)));
+		}
 		return resolved;
+	}
+
+	private static OpenCall open(
+			PyCall call) {
+		OpenCall open = new OpenCall(call);
+		open.setSource(call);
+		open.setParentStatement(call);
+		return open;
 	}
 
 	private CallGraphNode node(
