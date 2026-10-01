@@ -10,13 +10,18 @@ import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
 import it.unive.lisa.interprocedural.callgraph.events.CallResolved;
 import it.unive.lisa.program.Application;
 import it.unive.lisa.program.cfg.CodeMember;
+import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.call.CFGCall;
 import it.unive.lisa.program.cfg.statement.call.Call;
 import it.unive.lisa.program.cfg.statement.call.OpenCall;
 import it.unive.lisa.program.cfg.statement.call.UnresolvedCall;
 import it.unive.lisa.type.Type;
+import it.unive.pylisa.cfg.statement.CallTargets;
 import it.unive.pylisa.cfg.statement.PyCall;
 import it.unive.pylisa.cfg.statement.PyResolvedCall;
+import it.unive.pylisa.cfg.type.PyClassType;
+import it.unive.pylisa.cfg.type.PyModuleType;
+import it.unive.pylisa.program.type.NoInfoType;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -131,6 +136,50 @@ public class PyCallGraph extends RTACallGraph {
 		if (!containsNode(node))
 			addNode(node, app.getEntryPoints().contains(member));
 		return node;
+	}
+
+	/**
+	 * Yields the operand of a Python call that is bound to the receiver of one of its targets, for
+	 * readers of the object a method is called on. A Python call passes the receiver it is written
+	 * with, {@code receiver.attribute(arguments)}, unless the receiver is a module (see
+	 * {@link CallTargets#receiverPassed}); a method reached through its class, as in
+	 * {@code Cls.method(obj)}, is passed the class, which is not the object it is called on. The
+	 * operand is the receiver only if, in every resolution of the call that reaches the target, every
+	 * value of it may be an object: no module, no class, and no value of unknown type, which may be
+	 * either. A reader applies the answer to every context of the call, so one resolution where the
+	 * operand is not the receiver is enough to answer that no operand is.
+	 *
+	 * @param call   a call site of the target
+	 * @param target the target
+	 *
+	 * @return the operand, or {@code null} if it is not certainly the object the target is called on
+	 *             in every resolution, or if {@code call} is not a Python call
+	 */
+	public Expression receiverOf(
+			Call call,
+			CodeMember target) {
+		if (!(call instanceof PyCall site) || !site.hasReceiver() || site.getSubExpressions().length < 2
+				|| !resolutions.containsKey(site))
+			return null;
+		boolean reached = false;
+		for (Map.Entry<List<Set<Type>>, PyResolvedCall> resolution : resolutions.get(site).entrySet()) {
+			if (!resolution.getValue().getTargets().contains(target))
+				continue;
+			reached = true;
+			Set<Type> receiver = resolution.getKey().get(1);
+			if (receiver.isEmpty() || !receiver.stream().allMatch(PyCallGraph::object))
+				return null;
+		}
+		return reached ? site.getSubExpressions()[1] : null;
+	}
+
+	/**
+	 * Whether a value of the type may be an object a method is called on: not a module, not a class,
+	 * and of a type the analysis knows.
+	 */
+	private static boolean object(
+			Type type) {
+		return !(type instanceof PyModuleType) && !(type instanceof PyClassType) && !NoInfoType.INSTANCE.equals(type);
 	}
 
 	@Override
