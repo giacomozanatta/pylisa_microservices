@@ -1,5 +1,6 @@
 package it.unive.pylisa.analysis.types;
 
+import it.unive.lisa.analysis.SemanticException;
 import it.unive.lisa.analysis.nonrelational.type.TypeValue;
 import it.unive.lisa.lattices.SetLattice;
 import it.unive.lisa.symbolic.value.Identifier;
@@ -105,6 +106,55 @@ public class PythonTypeSet
 		return this == BOTTOM || super.isBottom();
 	}
 
+	/**
+	 * Yields whether this set is below the given one. A set holding
+	 * {@link NoInfoType} stands for every type, so every set is below it. The
+	 * order must agree with this reading, since an environment reads an
+	 * identifier it does not hold as {@link #NO_INFO_TYPE} (see
+	 * {@link #unknownValue}): otherwise the least upper bound of two
+	 * environments that name the same heap location differently, strongly in
+	 * one and weakly in the other, would not be above both, and the fixpoint
+	 * of the callers would never stabilise.
+	 * <p>
+	 * The order is a preorder: the sets holding {@link NoInfoType} are
+	 * equivalent to each other and above every set but {@link #TOP}. They are
+	 * not {@link #TOP} themselves, so {@link #isTop()} is false for them: a
+	 * top set of types may be read as every type of the program, while the
+	 * analysis dispatches a set holding {@link NoInfoType} on its other types
+	 * and leaves the rest of the call open. Which of two
+	 * equivalent sets a fixpoint keeps may depend on the order it visits the
+	 * program in; both describe the same values.
+	 * </p>
+	 */
+	@Override
+	public boolean lessOrEqualAux(
+			PythonTypeSet other)
+			throws SemanticException {
+		return other.elements.contains(NoInfoType.INSTANCE) || super.lessOrEqualAux(other);
+	}
+
+	/**
+	 * Yields the greatest lower bound of this set and the given one. A set
+	 * holding {@link NoInfoType} stands for every type, so the bound is the
+	 * other set.
+	 */
+	@Override
+	public PythonTypeSet glbAux(
+			PythonTypeSet other)
+			throws SemanticException {
+		if (elements.contains(NoInfoType.INSTANCE))
+			return other;
+		if (other.elements.contains(NoInfoType.INSTANCE))
+			return this;
+		return super.glbAux(other);
+	}
+
+	/**
+	 * Yields the types of an identifier the environment does not hold: any
+	 * type. A missing identifier may be one that was never assigned, or a heap
+	 * location that a join renamed (strong to weak), so nothing narrower is
+	 * sound.
+	 */
 	@Override
 	public PythonTypeSet unknownValue(
 			Identifier id) {
