@@ -9,6 +9,7 @@ import it.unive.lisa.interprocedural.callgraph.CallResolutionException;
 import it.unive.lisa.interprocedural.callgraph.RTACallGraph;
 import it.unive.lisa.interprocedural.callgraph.events.CallResolved;
 import it.unive.lisa.program.Application;
+import it.unive.lisa.program.cfg.CodeLocation;
 import it.unive.lisa.program.cfg.CodeMember;
 import it.unive.lisa.program.cfg.statement.Expression;
 import it.unive.lisa.program.cfg.statement.call.CFGCall;
@@ -18,6 +19,7 @@ import it.unive.lisa.program.cfg.statement.call.UnresolvedCall;
 import it.unive.lisa.type.Type;
 import it.unive.pylisa.cfg.statement.CallTargets;
 import it.unive.pylisa.cfg.statement.PyCall;
+import it.unive.pylisa.cfg.statement.PyInstantiation;
 import it.unive.pylisa.cfg.statement.PyResolvedCall;
 import it.unive.pylisa.cfg.type.PyClassType;
 import it.unive.pylisa.cfg.type.PyModuleType;
@@ -26,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,9 +50,9 @@ import java.util.Set;
  * fixpoint iterations it is analysed in.
  * </p>
  * <p>
- * Resolutions are shared by equal calls, and the equality of calls ignores
- * whether a call has a receiver or applies a decorator: the frontend never
- * builds two equal calls that differ in either.
+ * Resolutions are shared by equal calls. Equality ignores whether a call has
+ * a receiver or applies a decorator, though the ordering of calls does not:
+ * the frontend never builds two equal calls that differ in either.
  * </p>
  */
 public class PyCallGraph extends RTACallGraph {
@@ -69,6 +72,18 @@ public class PyCallGraph extends RTACallGraph {
 	 */
 	private final Set<Call> applications = Collections.newSetFromMap(new IdentityHashMap<>());
 
+	/**
+	 * The classes, and the targets of {@code __new__}, of the instantiations
+	 * made at each location. The calls an instantiation makes of
+	 * {@code __new__} and {@code __init__} are equal to those of another
+	 * instantiation at the same location whenever their owners are the same,
+	 * so their operands share one stored state.
+	 */
+	private final Map<CodeLocation, Creators> creators = new HashMap<>();
+
+	private record Creators(Set<Type> classes, Set<CallTargets.Target> newTargets) {
+	}
+
 	@Override
 	public void init(
 			Application app,
@@ -80,6 +95,7 @@ public class PyCallGraph extends RTACallGraph {
 		resolutions.clear();
 		sites.clear();
 		applications.clear();
+		creators.clear();
 	}
 
 	@Override
@@ -100,12 +116,15 @@ public class PyCallGraph extends RTACallGraph {
 		Map<List<Set<Type>>, PyResolvedCall> byTypes = resolutions.computeIfAbsent(site, c -> new HashMap<>());
 		List<Set<Type>> key = Arrays.asList(types);
 		PyResolvedCall known = byTypes.get(key);
-		if (known != null)
+		if (known != null) {
+			noteCreator(site, known);
 			return known;
+		}
 		PyResolvedCall resolved = new PyResolvedCall(site, types);
 		resolved.setSource(call);
 		byTypes.put(key, resolved);
 		applications.addAll(resolved.applications());
+		noteCreator(site, resolved);
 		CallGraphNode caller = node(call.getCFG());
 		for (CodeMember target : resolved.getTargets()) {
 			addEdge(new CallGraphEdge(caller, node(target)));
@@ -120,6 +139,25 @@ public class PyCallGraph extends RTACallGraph {
 				events.post(new CallResolved(call, types, aliasing, open(site)));
 		}
 		return resolved;
+	}
+
+	/**
+	 * Records the class of the instantiation a call of {@code __new__} or
+	 * {@code __init__} belongs to, and the targets of {@code __new__}.
+	 */
+	private void noteCreator(
+			PyCall call,
+			PyResolvedCall resolved) {
+		if (!(call.getParentStatement() instanceof PyInstantiation instantiation))
+			return;
+		Creators at = creators.computeIfAbsent(call.getLocation(),
+				location -> new Creators(new HashSet<>(), new HashSet<>()));
+		at.classes().add(instantiation.getClassType());
+		// an instantiation passes the object it creates to __init__ as its
+		// receiver, and calls __new__ without one; every way __new__ may
+		// create the object counts, a class it instantiates included
+		if (!call.hasReceiver())
+			at.newTargets().addAll(resolved.targets());
 	}
 
 	private static OpenCall open(
@@ -153,7 +191,9 @@ public class PyCallGraph extends RTACallGraph {
 	 * @param target the target
 	 *
 	 * @return the operand, or {@code null} if it is not certainly the object the target is called on
-	 *             in every resolution, or if {@code call} is not a Python call
+	 *             in every resolution, if {@code call} is the {@code __init__} of an instantiation
+	 *             whose location creates objects through more than one class or more than one
+	 *             target of {@code __new__}, or if {@code call} is not a Python call
 	 */
 	public Expression receiverOf(
 			Call call,
@@ -161,6 +201,15 @@ public class PyCallGraph extends RTACallGraph {
 		if (!(call instanceof PyCall site) || !site.hasReceiver() || site.getSubExpressions().length < 2
 				|| !resolutions.containsKey(site))
 			return null;
+		// the object an instantiation creates is read in the one state its
+		// receiver operand stores, which the last class or the last target
+		// of __new__ to run leaves: with several, it is not the object of
+		// every path
+		if (site.getParentStatement() instanceof PyInstantiation) {
+			Creators at = creators.get(site.getLocation());
+			if (at == null || at.classes().size() > 1 || at.newTargets().size() > 1)
+				return null;
+		}
 		boolean reached = false;
 		for (Map.Entry<List<Set<Type>>, PyResolvedCall> resolution : resolutions.get(site).entrySet()) {
 			if (!resolution.getValue().getTargets().contains(target))

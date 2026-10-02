@@ -160,6 +160,36 @@ class InstantiationTest {
 		assertEquals(Set.of(run.lineOf("@user")), CallSitesTest.lines(run.sitesOfMethod("U", "__new__")));
 	}
 
+	@ParameterizedTest
+	@EnumSource(AnalysisConfig.class)
+	void initRunsOnTheObjectsNewReturnsAndIsOpenOnTheRest(
+			AnalysisConfig config)
+			throws Exception {
+		// __new__ returns None on one path and an object on the other:
+		// __init__ runs on the object, and is reported as a part that cannot
+		// be run on None
+		Run run = CallGraphTestSupport.analyse(DIR + "new_maybe_none.py", config);
+		int line = run.lineOf("@maybe_none");
+		assertTrue(CallSitesTest.lines(run.sitesOfMethod("C", "__init__")).contains(line),
+				run.allSites().toString());
+		assertTrue(nestedOpen(run, "@maybe_none").stream().anyMatch(InstantiationTest::ofInit),
+				run.events().toString());
+	}
+
+	@ParameterizedTest
+	@EnumSource(AnalysisConfig.class)
+	void newWithoutAValueGivesAnUnknownObjectAndAnOpenInit(
+			AnalysisConfig config)
+			throws Exception {
+		Run run = CallGraphTestSupport.analyse(DIR + "new_no_value.py", config);
+		assertTrue(nestedOpen(run, "@no_value").stream().anyMatch(InstantiationTest::ofInit),
+				run.events().toString());
+		assertTrue(run.sitesOf("testnatives.Void.__init__::$call").isEmpty(), run.allSites().toString());
+		StateTestHelper helper = StateTestHelper.analyse(DIR + "new_no_value.py", config);
+		assertTrue(helper.after("@after").isReachable());
+		assertEquals(Val.top(), helper.after("@after").value("v"));
+	}
+
 	/** Whether the call of an event is the call of {@code __init__}. */
 	private static boolean ofInit(
 			CallResolved event) {

@@ -26,6 +26,8 @@ class ReceiverExposureTest {
 
 	private static final String PROGRAM = "src/test/resources/callgraph/receivers/receivers.py";
 
+	private static final String TWO_CLASSES = "src/test/resources/callgraph/receivers/two_classes.py";
+
 	@ParameterizedTest
 	@EnumSource(AnalysisConfig.class)
 	void methodCalledOnAnObjectExposesTheObject(
@@ -75,6 +77,20 @@ class ReceiverExposureTest {
 		// would be read as the object the method is called on
 		Run run = CallGraphTestSupport.analyse(PROGRAM, config);
 		assertNull(receiver(run, run.sitesOfMethod("A", "m"), "@mixed"));
+	}
+
+	@ParameterizedTest
+	@EnumSource(AnalysisConfig.class)
+	void instantiationOfOneOfSeveralClassesExposesNothing(
+			AnalysisConfig config)
+			throws Exception {
+		// both classes reach the same __init__ through equal nested calls,
+		// whose receiver operands share one stored state: the object of one
+		// class would be read as the object of the other
+		Run run = CallGraphTestSupport.analyse(TWO_CLASSES, config);
+		Collection<Call> sites = run.sitesOf("testnatives.Plain.__init__::$call");
+		assertNull(receiver(run, sites, "@two_classes"));
+		assertInstanceOf(InstrumentedReceiverRef.class, receiver(run, sites, "@one_class"));
 	}
 
 	/**

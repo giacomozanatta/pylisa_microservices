@@ -146,11 +146,26 @@ final class CallGraphTestSupport {
 		 */
 		int lineOf(
 				String label) {
-			for (int i = 0; i < lines.size(); i++)
-				if (lines.get(i).matches(".*#\\s*" + label + "\\b.*"))
-					return i + 1;
-			throw new AssertionError("No line is marked " + label);
+			return CallGraphTestSupport.lineOf(lines, label);
 		}
+	}
+
+	/**
+	 * Yields the line of a program marked with a label, written as a comment
+	 * {@code # @label} at the end of the line.
+	 *
+	 * @param lines the lines of the program
+	 * @param label the label, starting with {@code @}
+	 *
+	 * @return the line, starting from 1
+	 */
+	static int lineOf(
+			List<String> lines,
+			String label) {
+		for (int i = 0; i < lines.size(); i++)
+			if (lines.get(i).matches(".*#\\s*" + label + "\\b.*"))
+				return i + 1;
+		throw new AssertionError("No line is marked " + label);
 	}
 
 	/**

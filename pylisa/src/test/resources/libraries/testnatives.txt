@@ -32,6 +32,9 @@ library testnatives:
         type it.unive.lisa.type.Untyped::INSTANCE
     method may_fail: it.unive.pylisa.testnatives.MayFailNative
         type it.unive.lisa.type.Untyped::INSTANCE
+    method nothing: it.unive.pylisa.testnatives.NoneNative
+        type it.unive.lisa.type.Untyped::INSTANCE
+        param cls type it.unive.lisa.type.Untyped::INSTANCE
     class Widget extends builtins.object:
         instance method __init__: it.unive.pylisa.testnatives.RaisingNative
             type it.unive.lisa.type.Untyped::INSTANCE
@@ -49,6 +52,13 @@ library testnatives:
         instance method __new__: it.unive.pylisa.testnatives.RaisingNative
             type it.unive.lisa.type.Untyped::INSTANCE
             param cls type it.unive.lisa.type.Untyped::INSTANCE
+    class Void extends builtins.object:
+        instance method __new__: it.unive.pylisa.testnatives.NoValueNative
+            type it.unive.lisa.type.Untyped::INSTANCE
+            param cls type it.unive.lisa.type.Untyped::INSTANCE
+        instance method __init__: it.unive.pylisa.testnatives.NoneNative
+            type it.unive.lisa.type.Untyped::INSTANCE
+            param self libtype Void*
     class Bag extends builtins.object:
         instance method __init__: it.unive.pylisa.testnatives.NoneNative
             type it.unive.lisa.type.Untyped::INSTANCE

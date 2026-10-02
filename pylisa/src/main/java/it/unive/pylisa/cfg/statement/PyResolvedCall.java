@@ -71,11 +71,9 @@ public class PyResolvedCall extends Call implements ResolvedCall {
 		super(site.getCFG(), site.getLocation(), CallType.UNKNOWN, "", site.getTargetName(),
 				LeftToRightEvaluation.INSTANCE, Untyped.INSTANCE, site.getSubExpressions());
 		this.site = site;
-		// building this call made it the parent of the operands: they belong
-		// to the call that is resolved, except the arguments, which the calls
-		// applying the targets adopt as their own
-		for (Expression operand : site.getSubExpressions())
-			operand.setParentStatement(site);
+		// the operands keep the call that is resolved as their parent, here and
+		// in the calls applying the targets: LiSA sets the parent of an
+		// expression only once
 		this.targets = CallTargets.targets(types[0]);
 		Expression[] arguments = site.arguments(types);
 		for (CallTargets.Target target : targets)
