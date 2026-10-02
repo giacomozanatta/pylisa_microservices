@@ -21,18 +21,19 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Mutable parsing state shared by the PyLiSA front-end visitors.
  * <p>
- * Introduced in Chunk 1 of the front-end refactor and extended in Chunk 2 to
- * additionally hold cross-visitor references, so the three sibling visitors
+ * It also holds cross-visitor references, so the three sibling visitors
  * (expression, statement, definition) can dispatch to one another without
  * inheriting from a common base.
  */
@@ -76,6 +77,7 @@ public final class ParserContext {
 	private SubscriptWrite subscriptWrite;
 	private final Deque<Set<String>> localScopes = new ArrayDeque<>();
 	private final Deque<List<Statement>> walrusPreludes = new ArrayDeque<>();
+	private final Map<ParserRuleContext, BoundNames> boundNames = new IdentityHashMap<>();
 
 	private ExpressionVisitor expr;
 	private StatementVisitor stmt;
@@ -361,5 +363,21 @@ public final class ParserContext {
 
 	public DefinitionVisitor def() {
 		return def;
+	}
+
+	/**
+	 * Yields the names bound by the file a construct belongs to, collected
+	 * once per file.
+	 *
+	 * @param construct a construct of the file
+	 *
+	 * @return the names
+	 */
+	public BoundNames boundNames(
+			ParserRuleContext construct) {
+		ParserRuleContext root = construct;
+		while (root.getParent() != null)
+			root = root.getParent();
+		return boundNames.computeIfAbsent(root, BoundNames::of);
 	}
 }

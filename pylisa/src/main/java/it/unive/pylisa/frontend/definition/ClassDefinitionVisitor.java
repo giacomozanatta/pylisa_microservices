@@ -102,8 +102,13 @@ public final class ClassDefinitionVisitor {
 			}
 			for (CompilationUnit match : matches)
 				cu.addAncestor(match);
-			if (matches.isEmpty())
+			// a base name the file also binds otherwise (an assignment, a
+			// parameter, a star import) may not be the class it matched
+			String written = superclass.getText().split("\\.")[0];
+			if (matches.isEmpty() || ctx.boundNames(pctx).mayRebind(written))
 				cu.markUnresolvedBase();
+			if (matches.size() > 1 || ctx.boundNames(pctx).mayRebind(written))
+				cu.markAmbiguousBase();
 		}
 		if (cu.getImmediateAncestors().isEmpty()) {
 			if (ctx.objectUnit() != null)

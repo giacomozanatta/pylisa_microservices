@@ -437,7 +437,10 @@ public final class ControlFlowVisitor {
 
 	public Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> visitWith_stmt(
 			With_stmtContext pctx) {
-		support.limitation(pctx, "with statement");
+		// __enter__ and __exit__ are not called: what the context manager
+		// binds is the manager itself, and an exception its __exit__ would
+		// suppress still leaves the body
+		support.unsound(pctx, "with statement (__exit__ may suppress exceptions)");
 		int withSize = pctx.with_item().size();
 		NodeList<CFG, Statement, Edge> block = new NodeList<>(ParserContext.SEQUENTIAL_SINGLETON);
 		Triple<Statement, NodeList<CFG, Statement, Edge>, Statement> curr = visitWith_item(pctx.with_item(0));

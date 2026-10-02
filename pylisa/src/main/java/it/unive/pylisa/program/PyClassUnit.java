@@ -66,6 +66,13 @@ public class PyClassUnit extends ClassUnit {
 	private boolean unresolvedBase;
 
 	/**
+	 * Whether some base class of this class, as written in its definition,
+	 * matches several classes of the program (a class defined differently on
+	 * different paths), all of which were added as ancestors.
+	 */
+	private boolean ambiguousBase;
+
+	/**
 	 * Builds a Python class unit. The {@code name} is taken as both the
 	 * identity name and the Python-visible base name — use this overload for
 	 * classes coming from library specs (one def-site per name).
@@ -120,6 +127,30 @@ public class PyClassUnit extends ClassUnit {
 	 */
 	public void markUnresolvedBase() {
 		unresolvedBase = true;
+	}
+
+	/**
+	 * Records that some base class of this class matches several classes of
+	 * the program, so that its ancestors include classes it may not have.
+	 */
+	public void markAmbiguousBase() {
+		ambiguousBase = true;
+	}
+
+	/**
+	 * Yields whether every ancestor of this class certainly is one: no base
+	 * class of this class, nor of its ancestors, matched several classes. Only
+	 * then is a successful subclass test certain.
+	 *
+	 * @return {@code true} if no ancestor is ambiguous
+	 */
+	public boolean hasUnambiguousAncestors() {
+		if (ambiguousBase)
+			return false;
+		for (CompilationUnit ancestor : getImmediateAncestors())
+			if (ancestor instanceof PyClassUnit pyAncestor && !pyAncestor.hasUnambiguousAncestors())
+				return false;
+		return true;
 	}
 
 	/**

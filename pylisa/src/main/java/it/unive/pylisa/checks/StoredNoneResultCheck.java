@@ -41,7 +41,12 @@ public class StoredNoneResultCheck<A extends AbstractLattice<A>, D extends Abstr
 	private static final AnnotationMatcher UNSOUND = new BasicAnnotationMatcher(
 			new Annotation(ParserSupport.UNSOUND_TRANSLATION));
 
+	private static final AnnotationMatcher LIMITATION = new BasicAnnotationMatcher(
+			new Annotation(ParserSupport.KNOWN_LIMITATION));
+
 	private final List<Advisory> advisories = new ArrayList<>();
+
+	private boolean unsoundTranslation;
 
 	/**
 	 * Yields the advisories of the last run.
@@ -56,6 +61,31 @@ public class StoredNoneResultCheck<A extends AbstractLattice<A>, D extends Abstr
 	public void beforeExecution(
 			SemanticTool<A, D> tool) {
 		advisories.clear();
+		unsoundTranslation = false;
+	}
+
+	/**
+	 * Yields whether some analysed function was translated unsoundly, or with
+	 * a known limitation, by the frontend. The states of such a function may miss
+	 * executions, and so may the states of every function it returns to, so
+	 * that no advisory of the run is then definite.
+	 *
+	 * @return {@code true} if one was
+	 */
+	public boolean sawUnsoundTranslation() {
+		return unsoundTranslation;
+	}
+
+	@Override
+	public boolean visit(
+			SemanticTool<A, D> tool,
+			CFG graph) {
+		// a known limitation of the frontend may also make a value look
+		// certain where Python gives another
+		if (!tool.getResultOf(graph).isEmpty() && (graph.getDescriptor().getAnnotations().contains(UNSOUND)
+				|| graph.getDescriptor().getAnnotations().contains(LIMITATION)))
+			unsoundTranslation = true;
+		return true;
 	}
 
 	@Override

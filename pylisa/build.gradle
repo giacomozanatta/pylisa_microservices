@@ -236,3 +236,15 @@ signing {
 tasks.named('check') {
     dependsOn 'knownFailingTest'
 }
+
+// pylisa's command line on a Python program, from the pylisa directory:
+//   ./gradlew -q pylisa --args='[--config CP|CP_BSS] [--workdir <dir>] <file.py>'
+tasks.register('pylisa', JavaExec) {
+    group = 'application'
+    description = 'Analyses a Python program with pylisa and its generic checks.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'it.unive.pylisa.cli.PyLisaMain'
+    workingDir = projectDir
+    // the exit status reports findings, not a failure of the build
+    ignoreExitValue = true
+}

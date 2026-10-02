@@ -10,6 +10,8 @@ library testnatives:
         type it.unive.lisa.type.Untyped::INSTANCE
     method stuck: it.unive.pylisa.testnatives.StuckNative
         type it.unive.lisa.type.Untyped::INSTANCE
+    method raise_or_block: it.unive.pylisa.testnatives.RaiseOrBlockNative
+        type it.unive.lisa.type.Untyped::INSTANCE
     method empty: it.unive.pylisa.testnatives.EmptyValuesNative
         type it.unive.lisa.type.Untyped::INSTANCE
     method echo: it.unive.pylisa.testnatives.EchoNative

@@ -3,10 +3,14 @@ package it.unive.pylisa.cfg.type;
 import it.unive.lisa.type.Type;
 import it.unive.lisa.type.TypeSystem;
 import it.unive.lisa.type.Untyped;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -93,6 +97,50 @@ public final class PyExceptionType implements Type {
 	 */
 	public static final PyExceptionType ZERO_DIVISION_ERROR = subclass("builtins.ZeroDivisionError",
 			ARITHMETIC_ERROR);
+
+	/**
+	 * {@code SystemExit}, raised by {@code sys.exit()} and by a command-line
+	 * parser that rejects its arguments.
+	 */
+	public static final PyExceptionType SYSTEM_EXIT = subclass("builtins.SystemExit", BASE_EXCEPTION);
+
+	/**
+	 * The exception classes of the {@code builtins} module that have a type
+	 * here, by their unqualified name: every class of the hierarchy under
+	 * {@link #BASE_EXCEPTION} named in {@code builtins}. A holder class, so
+	 * that the map is built after the constants it lists.
+	 */
+	private static final class Builtins {
+
+		private static final String MODULE = "builtins.";
+
+		private static final Map<String, PyExceptionType> BY_NAME = byName();
+
+		private static Map<String, PyExceptionType> byName() {
+			Map<String, PyExceptionType> map = new HashMap<>();
+			Deque<PyExceptionType> pending = new ArrayDeque<>(List.of(BASE_EXCEPTION));
+			while (!pending.isEmpty()) {
+				PyExceptionType type = pending.pop();
+				if (type.name.startsWith(MODULE))
+					map.put(type.name.substring(MODULE.length()), type);
+				pending.addAll(type.subclasses);
+			}
+			return Collections.unmodifiableMap(map);
+		}
+	}
+
+	/**
+	 * Yields the type of an exception class of the {@code builtins} module.
+	 *
+	 * @param name the unqualified name of the class, such as
+	 *                 {@code TypeError}
+	 *
+	 * @return the type, or {@code null} if the class has no type here
+	 */
+	public static PyExceptionType builtin(
+			String name) {
+		return Builtins.BY_NAME.get(name);
+	}
 
 	private final String name;
 

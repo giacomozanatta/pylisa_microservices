@@ -69,4 +69,22 @@ public class LambdaExpression extends Expression {
 				new LambdaConstant(PyLambdaType.INSTANCE, getLocation(), arguments, body),
 				this);
 	}
+
+	/**
+	 * Yields the parameters of the lambda.
+	 *
+	 * @return the parameters
+	 */
+	public List<Expression> getArguments() {
+		return arguments;
+	}
+
+	/**
+	 * Yields the body of the lambda.
+	 *
+	 * @return the body
+	 */
+	public Expression getBody() {
+		return body;
+	}
 }

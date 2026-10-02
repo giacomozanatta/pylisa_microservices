@@ -17,8 +17,15 @@ import it.unive.pylisa.antlr.Python3Parser.Yield_argContext;
 import it.unive.pylisa.antlr.Python3Parser.Yield_stmtContext;
 import it.unive.pylisa.cfg.expression.Break;
 import it.unive.pylisa.cfg.expression.Continue;
+import it.unive.pylisa.cfg.statement.PyCall;
+import it.unive.pylisa.cfg.statement.PyNameRef;
+import it.unive.pylisa.cfg.statement.PyRaise;
+import it.unive.pylisa.cfg.type.PyExceptionType;
+import it.unive.pylisa.frontend.BoundNames;
 import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,10 +51,8 @@ public final class FlowControlVisitor {
 		if (pctx.return_stmt() != null)
 			return visitReturn_stmt(pctx.return_stmt());
 
-		if (pctx.raise_stmt() != null) {
-			support.unsound(pctx, "raise treated as no-op");
-			return new NoOp(ctx.currentCFG(), support.getLocation(pctx));
-		}
+		if (pctx.raise_stmt() != null)
+			return visitRaise_stmt(pctx.raise_stmt());
 
 		if (pctx.yield_stmt() != null) {
 			// a generator's call returns a generator, not what its body
@@ -129,8 +134,46 @@ public final class FlowControlVisitor {
 				l.toArray(new Expression[0]));
 	}
 
-	public Object visitRaise_stmt(
+	/**
+	 * Translates a {@code raise} statement. When the raised exception is built
+	 * by, or is, a builtin exception class with a known type, the statement
+	 * raises that type and evaluates only the arguments of the class; any other
+	 * raised expression is evaluated as a whole and raises an exception of
+	 * unknown type. The name is taken as the builtin class only when the file
+	 * never binds it (see {@link BoundNames}).
+	 *
+	 * @param pctx the statement
+	 *
+	 * @return the translated statement
+	 */
+	public Statement visitRaise_stmt(
 			Raise_stmtContext pctx) {
-		return support.rejectUnsupported(pctx);
+		List<Expression> evaluated = new ArrayList<>();
+		PyExceptionType type = PyExceptionType.BASE_EXCEPTION;
+		if (!pctx.test().isEmpty()) {
+			Expression raised = ctx.expr().visitTest(pctx.test(0));
+			PyExceptionType builtin = builtinException(raised, ctx.boundNames(pctx));
+			if (builtin == null)
+				evaluated.add(raised);
+			else {
+				type = builtin;
+				if (raised instanceof PyCall call) {
+					Expression[] sub = call.getSubExpressions();
+					evaluated.addAll(Arrays.asList(sub).subList(1, sub.length));
+				}
+			}
+			if (pctx.test().size() > 1)
+				evaluated.add(ctx.expr().visitTest(pctx.test(1)));
+		}
+		return new PyRaise(ctx.currentCFG(), support.getLocation(pctx), type, evaluated.toArray(Expression[]::new));
+	}
+
+	private static PyExceptionType builtinException(
+			Expression raised,
+			BoundNames bound) {
+		Expression named = raised instanceof PyCall call ? call.getSubExpressions()[0] : raised;
+		return named instanceof PyNameRef name && !bound.mayBind(name.getName())
+				? PyExceptionType.builtin(name.getName())
+				: null;
 	}
 }

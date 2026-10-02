@@ -30,6 +30,11 @@ library builtins:
     class dict extends builtins.sequence
     class tuple extends builtins.sequence
     class slice extends builtins.sequence
+    class bytes extends builtins.object
+    method isinstance: it.unive.pylisa.libraries.builtins.functions.IsInstance
+        type it.unive.lisa.program.type.BoolType::INSTANCE
+        param obj type it.unive.lisa.type.Untyped::INSTANCE
+        param classinfo type it.unive.lisa.type.Untyped::INSTANCE
     method staticmethod: it.unive.pylisa.libraries.builtins.functions.StaticMethod
         type it.unive.lisa.type.Untyped::INSTANCE
         param f type it.unive.lisa.type.Untyped::INSTANCE

@@ -27,7 +27,6 @@ class KnownLimitationMarksTest {
 			"nested_argument.py | call nested in the arguments of a call",
 			"call_receiver.py | method call on the result of a call",
 			"membership_call.py | membership test over a call",
-			"with_statement.py | with statement",
 			"for_loop.py | for loop",
 			"walrus_if.py | assignment expression in a condition",
 			"walrus_while.py | assignment expression in a condition",
@@ -86,6 +85,13 @@ class KnownLimitationMarksTest {
 				unsound |= annotation.getAnnotationName().equals(ParserSupport.UNSOUND_TRANSLATION);
 		assertTrue(unsound, "async def still weakens the analysis");
 		assertTrue(marks(PROGRAMS + "unsound_and_limitation.py").contains("for loop"));
+	}
+
+	@Test
+	void withStatementIsAnUnsoundTranslation() throws Exception {
+		// __exit__ is not called, and it may suppress an exception
+		Set<String> marks = marks(PROGRAMS + "with_statement.py", ParserSupport.UNSOUND_TRANSLATION);
+		assertTrue(marks.contains("with statement (__exit__ may suppress exceptions)"), marks.toString());
 	}
 
 	@Test
