@@ -3,6 +3,7 @@ package it.unive.pylisa.frontend.expression;
 import it.unive.lisa.program.SourceCodeLocation;
 import it.unive.lisa.program.cfg.CFG;
 import it.unive.lisa.program.cfg.statement.Expression;
+import it.unive.lisa.program.cfg.statement.NaryExpression;
 import it.unive.lisa.program.cfg.statement.literal.Int32Literal;
 import it.unive.lisa.program.type.BoolType;
 import it.unive.lisa.symbolic.value.operator.binary.BinaryOperator;
@@ -97,14 +98,34 @@ public final class BinaryOpVisitor {
 
 	public Expression visitOr_test(
 			Or_testContext pctx) {
-		return support.foldBinaryOp(pctx.and_test(), this::visitAnd_test, PyOr::new,
+		Expression folded = support.foldBinaryOp(pctx.and_test(), this::visitAnd_test, PyOr::new,
 				support.getLocation(pctx));
+		if (pctx.and_test().size() > 1)
+			markShortCircuit(pctx, folded);
+		return folded;
 	}
 
 	public Expression visitAnd_test(
 			And_testContext pctx) {
-		return support.foldBinaryOp(pctx.not_test(), this::visitNot_test, PyAnd::new,
+		Expression folded = support.foldBinaryOp(pctx.not_test(), this::visitNot_test, PyAnd::new,
 				support.getLocation(pctx));
+		if (pctx.not_test().size() > 1)
+			markShortCircuit(pctx, folded);
+		return folded;
+	}
+
+	/**
+	 * Marks an {@code and} or {@code or} whose right operand contains a call:
+	 * the right operand is evaluated once for each value of the left one, and
+	 * only the state of the last evaluation is stored. The fold nests to the
+	 * right, so the right operand of the outermost operator holds every later
+	 * operand.
+	 */
+	private void markShortCircuit(
+			ParserRuleContext pctx,
+			Expression folded) {
+		if (ParserSupport.containsCall(((NaryExpression) folded).getSubExpressions()[1]))
+			support.limitation(pctx, "call in the right operand of and, or");
 	}
 
 	public Expression visitNot_test(
@@ -127,9 +148,8 @@ public final class BinaryOpVisitor {
 
 	private Expression buildComparison(
 			ComparisonContext pctx) {
-		Expression first = buildSingleComparison(pctx, pctx.comp_op(0), support.getLocation(pctx));
 		if (pctx.comp_op().size() == 1)
-			return first;
+			return buildSingleComparison(pctx, pctx.comp_op(0), support.getLocation(pctx));
 		BinaryOperator[] operators = new BinaryOperator[pctx.comp_op().size()];
 		for (int i = 0; i < operators.length; i++)
 			operators[i] = orderingOrEquality(pctx.comp_op(i));
@@ -137,6 +157,13 @@ public final class BinaryOpVisitor {
 			Expression[] operands = new Expression[pctx.expr().size()];
 			for (int i = 0; i < operands.length; i++)
 				operands[i] = visitExpr(pctx.expr(i));
+			// each operand after the second is evaluated once for each value of
+			// the comparison before it, and only the last state is stored
+			for (int i = 2; i < operands.length; i++)
+				if (ParserSupport.containsCall(operands[i])) {
+					support.limitation(pctx, "call in a chained comparison");
+					break;
+				}
 			return new PyComparisonChain(ctx.currentCFG(), support.getLocation(pctx.comp_op(0)), operands,
 					operators);
 		}
@@ -144,6 +171,8 @@ public final class BinaryOpVisitor {
 		// operand is evaluated once; the comparisons after the first are not
 		// built (their operands would be evaluated twice), so the chain is the
 		// first comparison and an unknown truth value
+		support.limitation(pctx, "chained comparison with in or is (operands after the second are not evaluated)");
+		Expression first = buildSingleComparison(pctx, pctx.comp_op(0), support.getLocation(pctx));
 		SourceCodeLocation rest = support.getLocation(pctx.comp_op(1));
 		return new PyAnd(ctx.currentCFG(), support.getLocation(pctx.comp_op(0)), first,
 				new PyUnknownLiteral(ctx.currentCFG(), rest, pctx.getText(), BoolType.INSTANCE));

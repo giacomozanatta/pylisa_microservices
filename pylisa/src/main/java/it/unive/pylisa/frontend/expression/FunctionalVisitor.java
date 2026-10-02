@@ -111,6 +111,11 @@ public final class FunctionalVisitor {
 			Expression trueCase = ctx.expr().visitOr_test(pctx.or_test(0));
 			Expression booleanGuard = ctx.expr().visitOr_test(pctx.or_test(1));
 			Expression falseCase = visitTest(pctx.test());
+			// the conditional expression does not store the states of its operands,
+			// so a call in them has no state after it to read
+			if (ParserSupport.containsCall(booleanGuard) || ParserSupport.containsCall(trueCase)
+					|| ParserSupport.containsCall(falseCase))
+				support.limitation(pctx, "call inside a conditional expression");
 			return new PyTernaryOperator(ctx.currentCFG(), support.getLocation(pctx), booleanGuard,
 					trueCase, falseCase);
 		}

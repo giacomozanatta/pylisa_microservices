@@ -43,13 +43,33 @@ class KnownLimitationMarksTest {
 			"matmul.py | matrix multiplication (@)",
 			"class_decorator.py | class decorator not applied",
 			"chained_assignment.py | chained assignment (only the first target is assigned)",
-			"global_statement.py | global or nonlocal declaration ignored" })
+			"global_statement.py | global or nonlocal declaration ignored",
+			"conditional_call.py | call inside a conditional expression",
+			"short_circuit_call.py | call in the right operand of and, or",
+			"short_circuit_or_call.py | call in the right operand of and, or",
+			"chained_comparison_call.py | call in a chained comparison",
+			"chained_membership_call.py | chained comparison with in or is (operands after the second are not evaluated)",
+			"adjacent_strings.py | adjacent string literals (only the first is kept)",
+			"import_several.py | import of several modules (only the first is imported)" })
 	void constructMarksItsFunction(
 			String program,
 			String construct)
 			throws Exception {
 		Set<String> marks = marks(PROGRAMS + program);
 		assertTrue(marks.contains(construct), program + " is marked with " + marks);
+	}
+
+	@Test
+	void aCallInTheLeftOperandOfAndOrIsNotMarked() throws Exception {
+		// the left operand is evaluated once and its state is stored
+		assertEquals(Set.of(), marks(PROGRAMS + "short_circuit_left_call.py"));
+	}
+
+	@Test
+	void aCallInTheFirstTwoOperandsOfAChainedComparisonIsNotMarked() throws Exception {
+		// the first operand is evaluated once, the second once from the state
+		// after the first, so both states are stored
+		assertEquals(Set.of(), marks(PROGRAMS + "chained_comparison_early_call.py"));
 	}
 
 	@Test

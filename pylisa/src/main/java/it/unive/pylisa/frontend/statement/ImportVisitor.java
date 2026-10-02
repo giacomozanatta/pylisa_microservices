@@ -17,7 +17,6 @@ import it.unive.pylisa.frontend.ParserContext;
 import it.unive.pylisa.frontend.ParserSupport;
 import it.unive.pylisa.libraries.LibrarySpecificationProvider;
 import it.unive.pylisa.program.ModuleUnit;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +51,9 @@ public final class ImportVisitor {
 
 	public Statement visitImport_name(
 			Import_nameContext pctx) {
-		Map<String, String> libs = new HashMap<>();
+		Map<String, String> libs = new LinkedHashMap<>();
+		if (pctx.dotted_as_names().dotted_as_name().size() > 1)
+			support.limitation(pctx, "import of several modules (only the first is imported)");
 		for (Dotted_as_nameContext single : pctx.dotted_as_names().dotted_as_name()) {
 			String importedLibrary = dottedNameToString(single.dotted_name());
 			String as = single.NAME() != null ? single.NAME().getSymbol().getText() : null;

@@ -58,8 +58,11 @@ public final class LiteralVisitor {
 			return new TrueLiteral(ctx.currentCFG(), support.getLocation(pctx));
 		if (pctx.NONE() != null)
 			return new PyNoneLiteral(ctx.currentCFG(), support.getLocation(pctx));
-		if (pctx.STRING().size() > 0)
+		if (pctx.STRING().size() > 0) {
+			if (pctx.STRING().size() > 1)
+				support.limitation(pctx, "adjacent string literals (only the first is kept)");
 			return support.strip(support.getLocation(pctx), pctx.STRING(0).getText());
+		}
 		if (pctx.yield_expr() != null)
 			return support.rejectUnsupported(pctx, "yield expression in atom");
 		if (pctx.OPEN_BRACE() == null && pctx.dictorsetmaker() != null)
